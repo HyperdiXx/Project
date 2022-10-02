@@ -249,167 +249,28 @@ namespace EProject
         }
     }
 
-    struct VertexPosColor
-    {
-        float p1, p2, p3;
-        float c1, c2, c3;
-
-        VertexPosColor() {};
-        VertexPosColor(const glm::vec3& pos, const glm::vec3& color) : 
-            p1(pos.x), p2(pos.y), p3(pos.z),
-            c1(color.x), c2(color.y), c3(color.z) {}
-    };
-    
     GameWindow::GameWindow(std::wstring wnd_name) :
         Wnd(L"RenderWin", wnd_name, true),
-        m_camera2d(nullptr)
+        m_camera2d(nullptr),
+        m_canvas(nullptr, m_camera2d)
     {
         m_device = std::make_shared<GDevice>(getHandle(), false);
-
-        auto currentPath = std::filesystem::current_path();
-        auto dataDir = currentPath.parent_path() / +"Data";
-        auto shadersDir = dataDir / "Shaders";
-
-        m_triangle = m_device->createShaderProgram();
-
-        ShaderInput vsInputTri = {};
-
-        vsInputTri.filePath = shadersDir / "triangle.hlsl";
-        vsInputTri.entyPoint = "vs_main";
-        vsInputTri.target = "vs_5_0";
-        vsInputTri.type = ShaderType::Vertex;
-
-        ShaderInput psInputTri = {};
-
-        psInputTri.filePath = shadersDir / "triangle.hlsl";
-        psInputTri.entyPoint = "ps_main";
-        psInputTri.target = "ps_5_0";
-        psInputTri.type = ShaderType::Pixel;
-
-        m_triangle->compileFromFile(vsInputTri);
-        m_triangle->compileFromFile(psInputTri);
-        m_triangle->create();
-
-        auto vbLayoutPosColor = getLayoutSelector()->add("POS", LayoutType::Float, 3)
-            ->add("COL", LayoutType::Float, 3)
-            ->end();
-
-        auto vbLayoutPos = getLayoutSelector()->add("POS", LayoutType::Float, 3)
-            ->end();
-
-        float vertexIndexDataQuadArray[] =
-        {
-            -0.5f, -0.5f, // point at top-right
-             0.5f, -0.5f, // point at bottom-right
-             0.5f,  0.5f, // point at bottom-left          
-            -0.5f,  0.5f // point at top-left      
-        };
-
-        float vertexDataArrayPos[] =
-        {
-             0.0f,  0.5f,  0.0f,
-             0.5f, -0.5f,  0.0f,
-            -0.5f, -0.5f,  0.0f
-        };
-
-        float vertexDataArray[] =
-        {
-               15.0f,  15.0f,  0.0f, 1.0f, 0.0f, 0.0f,  // point at top
-               15.0f, -15.0f,  0.0f, 0.0f, 1.0f, 0.0f,  // point at bottom-right
-              -15.0f, -15.0f,  0.0f, 0.0f, 0.0f, 1.0f,  // point at bottom-left
-
-              -15.0f,  -15.0f, 0.0f, 0.0f, 0.0f, 1.0f,   // point at bottom-left               
-               15.0f,  15.0f,  0.0f, 1.0f, 0.0f, 0.0f,   // point at bottom-left               
-              -15.0f,  15.0f,  0.0f, 0.0f, 1.0f, 0.0f   // point at bottom-left               
-        };
-
-        std::vector<int> index_data = { 0, 1, 2, 2, 3, 0 };
-
-        static const size_t batchCount = 1024;
-        int sizeofPosColor = sizeof(VertexPosColor);
-        std::vector<VertexPosColor> vertexQuadBatch = {};
-        vertexQuadBatch.reserve(batchCount);
-        
-        unsigned int* indexQuadBatch = new unsigned int[batchCount * 6];
-
-        size_t offset = 0;
-        for (size_t i = 0; i < batchCount * 6; i += 6)
-        {
-            indexQuadBatch[i] = offset + 0;
-            indexQuadBatch[i + 1] = offset + 1;
-            indexQuadBatch[i + 2] = offset + 2;
-
-            indexQuadBatch[i + 3] = offset + 2;
-            indexQuadBatch[i + 4] = offset + 3;
-            indexQuadBatch[i + 5] = offset + 0;
-
-            offset += 4;
-        }
-
-        glm::vec3 redColor = { 1.0f, 0.0f, 0.0f };
-        glm::vec3 blueColor = { 0.0f, 0.0f, 1.0f };
-        glm::vec3 greenColor = { 0.0f, 1.0f, 0.0f };
-
-        glm::vec3 position = { 0.0f, 0.0f, 0.0f };
-        glm::vec3 scale = { 5.0f, 5.0f, 0.0f };
-
-        //for (int i = 0; i < 3; i++)
-        //{
-            glm::mat4 transform = glm::translate(glm::mat4(1.0f), position) * glm::scale(glm::mat4(1.0f), { scale.x, scale.y, 1.0f });
-
-            glm::vec4 qVert1 = transform * glm::vec4(vertexIndexDataQuadArray[0], vertexIndexDataQuadArray[1], 0.0f, 1.0f);
-            glm::vec4 qVert2 = transform * glm::vec4(vertexIndexDataQuadArray[2], vertexIndexDataQuadArray[3], 0.0f, 1.0f);
-            glm::vec4 qVert3 = transform * glm::vec4(vertexIndexDataQuadArray[4], vertexIndexDataQuadArray[5], 0.0f, 1.0f);
-            glm::vec4 qVert4 = transform * glm::vec4(vertexIndexDataQuadArray[6], vertexIndexDataQuadArray[7], 0.0f, 1.0f);
-
-            vertexQuadBatch.emplace_back(qVert1.xyz(), redColor);
-            vertexQuadBatch.emplace_back(qVert2.xyz(), redColor);
-            vertexQuadBatch.emplace_back(qVert3.xyz(), redColor);
-            vertexQuadBatch.emplace_back(qVert4.xyz(), redColor);
-
-            position.x += 10.0f;
-        // }
-
-            transform = glm::translate(glm::mat4(1.0f), position) * glm::scale(glm::mat4(1.0f), { scale.x, scale.y, 1.0f });
-
-            qVert1 = transform * glm::vec4(vertexIndexDataQuadArray[0], vertexIndexDataQuadArray[1], 0.0f, 1.0f);
-            qVert2 = transform * glm::vec4(vertexIndexDataQuadArray[2], vertexIndexDataQuadArray[3], 0.0f, 1.0f);
-            qVert3 = transform * glm::vec4(vertexIndexDataQuadArray[4], vertexIndexDataQuadArray[5], 0.0f, 1.0f);
-            qVert4 = transform * glm::vec4(vertexIndexDataQuadArray[6], vertexIndexDataQuadArray[7], 0.0f, 1.0f);
-
-            vertexQuadBatch.emplace_back(qVert1.xyz(), blueColor);
-            vertexQuadBatch.emplace_back(qVert2.xyz(), blueColor);
-            vertexQuadBatch.emplace_back(qVert3.xyz(), blueColor);
-            vertexQuadBatch.emplace_back(qVert4.xyz(), blueColor);
-
-            position.x += 10.0f;
-
-            transform = glm::translate(glm::mat4(1.0f), position) * glm::scale(glm::mat4(1.0f), { scale.x, scale.y, 1.0f });
-
-            qVert1 = transform * glm::vec4(vertexIndexDataQuadArray[0], vertexIndexDataQuadArray[1], 0.0f, 1.0f);
-            qVert2 = transform * glm::vec4(vertexIndexDataQuadArray[2], vertexIndexDataQuadArray[3], 0.0f, 1.0f);
-            qVert3 = transform * glm::vec4(vertexIndexDataQuadArray[4], vertexIndexDataQuadArray[5], 0.0f, 1.0f);
-            qVert4 = transform * glm::vec4(vertexIndexDataQuadArray[6], vertexIndexDataQuadArray[7], 0.0f, 1.0f);
-
-            vertexQuadBatch.emplace_back(qVert1.xyz(), greenColor);
-            vertexQuadBatch.emplace_back(qVert2.xyz(), greenColor);
-            vertexQuadBatch.emplace_back(qVert3.xyz(), greenColor);
-            vertexQuadBatch.emplace_back(qVert4.xyz(), greenColor);
-
-            position.x += 10.0f;
-
-        m_vb = m_device->createVertexBuffer();
-        m_vb->setState(vbLayoutPosColor, batchCount * 4, vertexQuadBatch.data());
-       
-        m_ib = m_device->createIndexBuffer();
-        m_ib->setState(static_cast<int>(batchCount * index_data.size()), indexQuadBatch);
-
-        static const char* projectionMatrix = "projection";
         
         m_camera2d = Camera2D(m_device);
         m_camera2d.updateScreen();
 
-        m_triangle->setValue(projectionMatrix, m_camera2d.getProj());        
+        m_canvas = Canvas(m_device, m_camera2d);
+
+        m_canvas.init();
+       
+        for (int y = -10; y < 11; ++y)
+        {
+            for (int x = -20; x < 21; ++x)
+            {
+                glm::vec3 pos(x * 5.5f, y * 5.5f, 0.0f);
+                m_canvas.drawQuad(pos, Color::white);
+            }
+        }
     }
 
     GameWindow::~GameWindow()
@@ -481,13 +342,8 @@ namespace EProject
     void GameWindow::render()
     {           
         m_device->getStates()->push();
-        
-        m_triangle->setInputBuffers(m_vb, m_ib, {}, 0);  
 
-        m_device->getStates()->setBlend(true, Blend::Src_Alpha, Blend::Inv_Src_Alpha);
-        m_device->getStates()->setCull(CullMode::None);
-
-        m_triangle->drawIndexed(PrimTopology::Triangle, 0, m_ib->getIndexCount());
+        m_canvas.draw();        
         
         m_device->getStates()->pop();
     }

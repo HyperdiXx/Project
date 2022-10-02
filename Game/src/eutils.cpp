@@ -79,4 +79,15 @@ namespace EProject
         m_ubo->setSubData(0, 1, &m_buf);
     }
 
+    std::filesystem::path PathHandler::getDataDir()
+    {
+        auto currentPath = std::filesystem::current_path();
+        return currentPath.parent_path() / "Data";
+    }
+
+    std::filesystem::path PathHandler::getShadersDir()
+    {
+        return getDataDir() / "Shaders";
+    }
+
 };

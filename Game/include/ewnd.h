@@ -1,14 +1,13 @@
 #pragma once
 
 #include "eutils.h"
+#include "egraphics.h"
 
 #define NOMINMAX
 #include <windows.h>
 #include <string>
 #include <functional>
 #include <iostream>
-
-#include "egapi.h"
 
 namespace EProject
 {
@@ -69,14 +68,9 @@ namespace EProject
     private:
 
         std::shared_ptr<GDevice> m_device;
-        VertexBufferPtr m_vb;
-        IndexBufferPtr m_ib;
-
-        ShaderProgramPtr m_triangle;
-        StructuredBufferPtr m_sb;
-        
+       
         Camera2D m_camera2d;
-        
+        Canvas m_canvas;
     };
 
     void MessageLoop(const std::function<void()> idle_proc);

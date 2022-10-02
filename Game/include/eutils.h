@@ -156,14 +156,29 @@ namespace EProject
         UniformBufferPtr m_ubo;
     };
 
-
     class Camera2D : public CameraBase
     {
     public:
-        Camera2D(const GDevicePtr& device);
+        Camera2D(const GDevicePtr& dev);
 
-        void updateScreen();
-    
+        void updateScreen();    
+    };
+
+    class Camera3D : public CameraBase
+    {
+    public:
+        Camera3D(const GDevicePtr& dev);
+    };
+
+    using Camera2DPtr = std::shared_ptr<Camera2D>;
+    using Camera3DPtr = std::shared_ptr<Camera3D>;
+
+    class PathHandler
+    {
+    public:
+
+        static std::filesystem::path getDataDir();
+        static std::filesystem::path getShadersDir();
     };
 
 }

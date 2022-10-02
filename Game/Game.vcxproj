@@ -141,6 +141,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="src\egraphics.cpp" />
     <ClCompile Include="src\egapi.cpp" />
     <ClCompile Include="src\eutils.cpp" />
     <ClCompile Include="src\ewnd.cpp" />
