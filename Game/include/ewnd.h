@@ -69,6 +69,8 @@ namespace EProject
 
         std::shared_ptr<GDevice> m_device;
        
+        AssetManager m_manager;
+
         Camera2D m_camera2d;
         Canvas m_canvas;
     };

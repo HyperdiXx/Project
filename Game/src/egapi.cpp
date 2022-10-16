@@ -9,6 +9,35 @@
 
 namespace EProject
 {
+    int getPixelsSize(TextureFmt fmt)
+    {
+        switch (fmt) {
+        case TextureFmt::R8: return 1;
+        case TextureFmt::RG8: return 2;
+        case TextureFmt::RGBA8: return 4;
+        case TextureFmt::RGBA8_SRGB: return 4;
+        case TextureFmt::R16: return 2;
+        case TextureFmt::RG16: return 4;
+        case TextureFmt::RGBA16: return 8;
+        case TextureFmt::R16f: return 2;
+        case TextureFmt::RG16f: return 4;
+        case TextureFmt::RGBA16f: return 8;
+        case TextureFmt::R32: return 4;
+        case TextureFmt::RG32: return 8;
+        case TextureFmt::RGB32: return 12;
+        case TextureFmt::RGBA32: return 16;
+        case TextureFmt::R32f: return 4;
+        case TextureFmt::RG32f: return 8;
+        case TextureFmt::RGB32f: return 12;
+        case TextureFmt::RGBA32f: return 16;
+        case TextureFmt::D16: return 2;
+        case TextureFmt::D24_S8: return 4;
+        case TextureFmt::D32f: return 4;
+        case TextureFmt::D32f_S8: return 8;
+        default:
+            return 0;
+        }
+    }
 
     void States::setDefaultStates()
     {
@@ -334,6 +363,11 @@ namespace EProject
         return m_activeProgram;
     }
 
+    GPUTexture2DPtr GDevice::createTexture2D()
+    {
+        return std::make_shared<GPUTexture2D>(shared_from_this());
+    }
+
     IndexBufferPtr GDevice::createIndexBuffer()
     {
         return std::make_shared<IndexBuffer>(shared_from_this());
@@ -595,8 +629,8 @@ namespace EProject
     {
         ComPtr<ID3D11ShaderReflection> ref;
         D3DReflect(data, data_size, __uuidof(ID3D11ShaderReflection), &ref);
-        D3D11_SHADER_DESC shader_desc;
-        ref->GetDesc(&shader_desc);
+        D3D11_SHADER_DESC shader_desc = {};
+        auto hr = ref->GetDesc(&shader_desc);
 
         for (UINT i = 0; i < shader_desc.BoundResources; i++)
         {
@@ -604,14 +638,14 @@ namespace EProject
             ref->GetResourceBindingDesc(i, &res_desc);
 
             SlotKind kind;
-            switch (res_desc.Type) {
+            switch (res_desc.Type)
+            {
             case D3D_SIT_CBUFFER: kind = SlotKind::Uniform; break;
             case D3D_SIT_TEXTURE: kind = SlotKind::Texture; break;
             case D3D_SIT_STRUCTURED: kind = SlotKind::Buffer; break;
             case D3D_SIT_SAMPLER: kind = SlotKind::Sampler; break;
             default:
-                continue;
-                //throw std::runtime_error("unsupported resource type");
+                throw std::runtime_error("Unsupported resource type!");
             }
             
             const Layout* l = res_desc.Type == D3D_SIT_CBUFFER ? autoReflectCB(ref->GetConstantBufferByName(res_desc.Name)) : nullptr;
@@ -806,6 +840,65 @@ namespace EProject
         }
 
         m_globals_dirty = true;
+    }
+
+    void ShaderProgram::setResource(const char* name, const UniformBufferPtr& ubo)
+    {
+        int idx = findSlot(name);
+        if (idx < 0)
+        {
+            return;
+        }
+        
+        ShaderSlot& slot = m_slots[idx];
+        if ((slot.buffer ? slot.buffer.Get() : nullptr) != (ubo ? ubo->m_handle.Get() : nullptr)) {
+            slot.buffer = ubo ? ubo->m_handle : nullptr;
+            if (isProgramActive())
+            {
+                slot.select(m_device->getDX11DeviceContext());
+            }
+        }
+    }
+
+    void ShaderProgram::setResource(const char* name, const StructuredBufferPtr& sbo)
+    {
+        int idx = findSlot(name);
+        if (idx < 0)
+        {
+            return;
+        }
+        
+        ShaderSlot& slot = m_slots[idx];
+        ComPtr<ID3D11ShaderResourceView> srv = sbo ? sbo->getShaderResource() : nullptr;
+        
+        if ((slot.view ? slot.view.Get() : nullptr) != srv.Get())
+        {
+            slot.view = std::move(srv);
+            if (isProgramActive())
+            {
+                slot.select(m_device->getDX11DeviceContext());
+            }
+        }
+    }
+
+    void ShaderProgram::setResource(const char* name, const GPUTexture2DPtr& tex, bool as_array, bool as_cubemap)
+    {
+        int idx = findSlot(name);
+        if (idx < 0)
+        {
+            return;
+        }
+        
+        ShaderSlot& slot = m_slots[idx];
+        ComPtr<ID3D11ShaderResourceView> srv = tex ? tex->getShaderResource(as_array, as_cubemap) : nullptr;
+        if ((slot.view ? slot.view.Get() : nullptr) != srv.Get())
+        {
+            slot.view = std::move(srv);
+            if (isProgramActive())
+            {
+                slot.select(m_device->getDX11DeviceContext());
+            }
+        }
     }
 
     void ShaderProgram::setResource(const char* name, const Sampler& s)
@@ -1509,7 +1602,7 @@ namespace EProject
         return m_vert_count;
     }
 
-    ComPtr<ID3D11ShaderResourceView> StructuredBuffer::getShaderResourceView()
+    ComPtr<ID3D11ShaderResourceView> StructuredBuffer::getShaderResource()
     {
         if (!m_vert_count)
         {
@@ -1529,7 +1622,7 @@ namespace EProject
         return m_srv;
     }
 
-    ComPtr<ID3D11UnorderedAccessView> StructuredBuffer::getUnorderedAccessView()
+    ComPtr<ID3D11UnorderedAccessView> StructuredBuffer::getUnorderedAccess()
     {
         assert(m_UAV_access);
         
@@ -1545,6 +1638,262 @@ namespace EProject
         }
 
         return m_uav;
+    }
+
+    GPUTexture2D::GPUTexture2D(const GDevicePtr& device) : DeviceHolder(device)
+    {
+        m_fmt = TextureFmt::RGBA8;
+        m_size = glm::ivec2(0, 0);
+        m_slices = 1;
+        m_mips_count = 1;
+    }
+
+    TextureFmt GPUTexture2D::format() const
+    {
+        return m_fmt;
+    }
+
+    glm::ivec2 GPUTexture2D::size() const
+    {
+        return m_size;
+    }
+
+    int GPUTexture2D::slicesCount() const
+    {
+        return m_slices;
+    }
+
+    int GPUTexture2D::mipsCount() const
+    {
+        return m_mips_count;
+    }
+
+    void GPUTexture2D::setState(TextureFmt fmt, int mip_levels)
+    {
+        m_fmt = fmt;
+        m_size = glm::ivec2(0, 0);
+        m_slices = 0;
+        m_mips_count = mip_levels;
+        m_handle = nullptr;
+        clearResViews();
+    }
+
+    void GPUTexture2D::setState(TextureFmt fmt, glm::ivec2 size, int mip_levels, int slices, const void* data)
+    {
+        m_fmt = fmt;
+        m_size = size;
+        m_slices = slices;
+        m_mips_count = glm::clamp(mip_levels, 1, calcMipLevelsCount(size.x, size.y));
+
+        D3D11_TEXTURE2D_DESC desc = {};
+        desc.Width = m_size.x;
+        desc.Height = m_size.y;
+        desc.MipLevels = m_mips_count;
+        desc.ArraySize = m_slices;
+        desc.Format = toDXGI_Fmt(m_fmt);
+        desc.SampleDesc = { 1, 0 };
+        desc.Usage = D3D11_USAGE_DEFAULT;
+        desc.BindFlags = 0;
+        
+        if (isShaderRes(m_fmt))
+        {
+            desc.BindFlags |= D3D11_BIND_SHADER_RESOURCE;
+        }
+        
+        if (isRenderTarget(m_fmt)) 
+        {
+            desc.BindFlags |= D3D11_BIND_RENDER_TARGET;
+        }
+
+        if (isDepthTarget(m_fmt))
+        {
+            desc.BindFlags |= D3D11_BIND_DEPTH_STENCIL;
+        }
+        
+        if (isUAV(m_fmt)) 
+        {
+            desc.BindFlags |= D3D11_BIND_UNORDERED_ACCESS;
+        }
+
+        desc.CPUAccessFlags = 0;
+        desc.MiscFlags = 0;
+        
+        if ((m_slices % 6 == 0) && isShaderRes(m_fmt))
+        {
+            desc.MiscFlags |= D3D11_RESOURCE_MISC_TEXTURECUBE;
+        }
+        
+        if ((m_mips_count > 0) && isRenderTarget(m_fmt))
+        {
+            desc.MiscFlags |= D3D11_RESOURCE_MISC_GENERATE_MIPS;
+        }
+
+        if (data)
+        {
+            D3D11_SUBRESOURCE_DATA d3ddata = {};
+            d3ddata.pSysMem = data;
+            d3ddata.SysMemPitch = getPixelsSize(m_fmt) * m_size.x;
+            d3ddata.SysMemSlicePitch = d3ddata.SysMemPitch * m_size.y;
+            getD3DErr(m_device->getDX11Device()->CreateTexture2D(&desc, &d3ddata, &m_handle));
+        }
+        else 
+        {
+            getD3DErr(m_device->getDX11Device()->CreateTexture2D(&desc, nullptr, &m_handle));
+        }
+
+        clearResViews();
+    }
+
+    void GPUTexture2D::setSubData(const glm::ivec2& offset, const glm::ivec2& size, int slice, int mip, const void* data)
+    {
+        assert(m_handle);
+
+        UINT res_idx = D3D11CalcSubresource(mip, slice, m_mips_count);
+        
+        D3D11_BOX box = {};
+
+        box.left = offset.x;
+        box.top = offset.y;
+        box.right = offset.x + size.x;
+        box.bottom = offset.y + size.y;
+        box.front = 0;
+        box.back = 1;
+
+        m_device->getDX11DeviceContext()->UpdateSubresource(m_handle.Get(), res_idx, &box, data, getPixelsSize(m_fmt) * size.x, getPixelsSize(m_fmt) * size.x * size.y);
+    }
+
+    void GPUTexture2D::generateMips()
+    {
+        m_device->getDX11DeviceContext()->GenerateMips(getShaderResource(false, false).Get());
+    }
+
+    void GPUTexture2D::readBack(void* data, int mip, int array_slice)
+    {
+    }
+
+    ID3D11ShaderResourceView* GPUTexture2D::_getShaderResView(bool as_array, bool as_cubemap)
+    {
+        auto srv = getShaderResource(as_array, as_cubemap);
+        return srv.Get();
+    }
+
+    ComPtr<ID3D11RenderTargetView> GPUTexture2D::buildRenderTarget(int mip, int slice_start, int slice_count) const
+    {
+        if (!m_handle)
+        {
+            return nullptr;
+        }
+        
+        D3D11_RENDER_TARGET_VIEW_DESC desc = {};
+        desc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2DARRAY;
+        desc.Format = toDXGI_SRVFmt(m_fmt);
+        desc.Texture2DArray.MipSlice = mip;
+        desc.Texture2DArray.FirstArraySlice = slice_start;
+        desc.Texture2DArray.ArraySize = slice_count;
+
+        ComPtr<ID3D11RenderTargetView> res = {};
+        getD3DErr(m_device->getDX11Device()->CreateRenderTargetView(m_handle.Get(), &desc, &res));
+        
+        return res;
+    }
+
+    ComPtr<ID3D11DepthStencilView> GPUTexture2D::buildDepthStencil(int mip, int slice_start, int slice_count, bool read_only) const
+    {
+        return ComPtr<ID3D11DepthStencilView>();
+    }
+
+    ComPtr<ID3D11ShaderResourceView> GPUTexture2D::getShaderResource(bool as_array, bool as_cubemap)
+    {
+        as_array = as_array || (m_slices > 1);
+        int srv_idx = (as_array ? 1 : 0) | (as_cubemap ? 2 : 0);
+        
+        if (!m_srv[srv_idx])
+        {
+            D3D11_SHADER_RESOURCE_VIEW_DESC desc = {};
+            desc.Format = toDXGI_SRVFmt(m_fmt);
+
+            if (as_array) 
+            {
+                if (as_cubemap) 
+                {
+                    desc.ViewDimension = D3D_SRV_DIMENSION_TEXTURECUBEARRAY;
+                    desc.TextureCubeArray.MipLevels = m_mips_count;
+                    desc.TextureCubeArray.MostDetailedMip = 0;
+                    desc.TextureCubeArray.First2DArrayFace = 0;
+                    desc.TextureCubeArray.NumCubes = m_slices / 6;
+                }
+                else 
+                {
+                    desc.ViewDimension = D3D_SRV_DIMENSION_TEXTURE2DARRAY;
+                    desc.Texture2DArray.MipLevels = m_mips_count;
+                    desc.Texture2DArray.MostDetailedMip = 0;
+                    desc.Texture2DArray.ArraySize = m_slices;
+                    desc.Texture2DArray.FirstArraySlice = 0;
+                }
+            }
+            else
+            {
+                if (as_cubemap) 
+                {
+                    desc.ViewDimension = D3D_SRV_DIMENSION_TEXTURECUBE;
+                    desc.TextureCube.MipLevels = m_mips_count;
+                    desc.TextureCube.MostDetailedMip = 0;
+                }
+                else 
+                {
+                    desc.ViewDimension = D3D_SRV_DIMENSION_TEXTURE2D;
+                    desc.Texture2D.MipLevels = m_mips_count;
+                    desc.Texture2D.MostDetailedMip = 0;
+                }
+            }
+            getD3DErr(m_device->getDX11Device()->CreateShaderResourceView(m_handle.Get(), &desc, &m_srv[srv_idx]));
+        }
+
+        return m_srv[srv_idx];
+    }
+
+    ComPtr<ID3D11UnorderedAccessView> GPUTexture2D::getUnorderedAccess(int mip, int slice_start, int slice_count, bool as_array)
+    {
+        // Hash key
+        glm::ivec3 hk(mip, slice_start, slice_count);
+
+        auto it = m_uav.find(hk);
+        if (it == m_uav.end())
+        {
+            ComPtr<ID3D11UnorderedAccessView> new_view = {};
+            D3D11_UNORDERED_ACCESS_VIEW_DESC desc = {};
+
+            desc.Format = toDXGI_Fmt(m_fmt);
+            bool is_array = (slice_count > 1) || as_array;
+            desc.ViewDimension = is_array ? D3D11_UAV_DIMENSION_TEXTURE2DARRAY : D3D11_UAV_DIMENSION_TEXTURE2D;
+            if (is_array) 
+            {
+                desc.Texture2DArray.MipSlice = mip;
+                desc.Texture2DArray.FirstArraySlice = slice_start;
+                desc.Texture2DArray.ArraySize = slice_count;
+            }
+            else 
+            {
+                desc.Texture2D.MipSlice = mip;
+            }
+            
+            getD3DErr(m_device->getDX11Device()->CreateUnorderedAccessView(m_handle.Get(), &desc, &new_view));
+            
+            m_uav.insert({ hk, new_view });
+            
+            return new_view;
+        }
+
+        return it->second;
+    }
+
+    void GPUTexture2D::clearResViews()
+    {
+        m_uav.clear();
+        m_srv[0] = nullptr;
+        m_srv[1] = nullptr;
+        m_srv[2] = nullptr;
+        m_srv[3] = nullptr;
     }
 
 }

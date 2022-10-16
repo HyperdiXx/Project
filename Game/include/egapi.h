@@ -162,7 +162,9 @@ namespace EProject
     class IndexBuffer;
     class UniformBuffer;
     class StructuredBuffer;
+    class GPUTexture2D;
 
+    using GPUTexture2DPtr = std::shared_ptr<GPUTexture2D>;
     using ShaderProgramPtr = std::shared_ptr<ShaderProgram>;
     using VertexBufferPtr = std::shared_ptr<VertexBuffer>;
     using IndexBufferPtr = std::shared_ptr<IndexBuffer>;
@@ -193,10 +195,10 @@ namespace EProject
         //FrameBufferPtr getActiveFrameBuffer() const;
         //Program* getActiveProgram();
 
-        /*FrameBufferPtr Create_FrameBuffer();
-        Texture2DPtr Create_Texture2D();
+        /*FrameBufferPtr Create_FrameBuffer();        
         Texture3DPtr Create_Texture3D();*/
-
+        
+        GPUTexture2DPtr createTexture2D();
         IndexBufferPtr createIndexBuffer();
         VertexBufferPtr createVertexBuffer();
         ShaderProgramPtr createShaderProgram();
@@ -332,9 +334,9 @@ namespace EProject
         void setValue(const char* name, const glm::vec4& v);
         void setValue(const char* name, const glm::mat4& m);
 
-        //void setResource(const char* name, const UniformBufferPtr& ubo);
-        //void setResource(const char* name, const StructuredBufferPtr& sbo);
-        //void setResource(const char* name, const Texture2DPtr& tex, bool as_array = false, bool as_cubemap = false);
+        void setResource(const char* name, const UniformBufferPtr& ubo);
+        void setResource(const char* name, const StructuredBufferPtr& sbo);
+        void setResource(const char* name, const GPUTexture2DPtr& tex, bool as_array = false, bool as_cubemap = false);
         //void setResource(const char* name, const Texture3DPtr& tex);
         void setResource(const char* name, const Sampler& s);
 
@@ -422,8 +424,8 @@ namespace EProject
         int getVertexCount() const;
 
     private:
-        ComPtr<ID3D11ShaderResourceView> getShaderResourceView();
-        ComPtr<ID3D11UnorderedAccessView> getUnorderedAccessView();
+        ComPtr<ID3D11ShaderResourceView> getShaderResource();
+        ComPtr<ID3D11UnorderedAccessView> getUnorderedAccess();
 
     private:
         ComPtr<ID3D11Buffer> m_handle;
@@ -503,7 +505,7 @@ namespace EProject
 
     class UniformBuffer : public DeviceHolder
     {
-        friend class Program;
+        friend class ShaderProgram;
     public:
         UniformBuffer(const GDevicePtr& device);
         
@@ -532,4 +534,58 @@ namespace EProject
         bool m_dirty = false;
     };
 
+    class GPUTexture2D : public DeviceHolder 
+    {
+        friend class FrameBuffer;
+        friend class ShaderProgram;   
+    public:
+        GPUTexture2D(const GDevicePtr& device);
+
+        TextureFmt format() const;
+        glm::ivec2 size() const;
+        int slicesCount() const;
+        int mipsCount() const;
+        void setState(TextureFmt fmt, int mip_levels = 0);
+        void setState(TextureFmt fmt, glm::ivec2 size, int mip_levels = 0, int slices = 1, const void* data = nullptr);
+        void setSubData(const glm::ivec2& offset, const glm::ivec2& size, int slice, int mip, const void* data);
+        void generateMips();
+
+        void readBack(void* data, int mip, int array_slice);
+    
+        ID3D11ShaderResourceView* _getShaderResView(bool as_array, bool as_cubemap);
+    private:
+        struct ivec3_hasher
+        {
+            std::size_t operator() (const glm::ivec3& v) const {
+                return std::hash<int>()(v.x) ^ std::hash<int>()(v.y) ^ std::hash<int>()(v.z);
+            }
+        };
+        
+        struct ivec2_hasher 
+        {
+            std::size_t operator() (const glm::ivec2& v) const {
+                return std::hash<int>()(v.x) ^ std::hash<int>()(v.y);
+            }
+        };
+
+    private:
+        ComPtr<ID3D11RenderTargetView> buildRenderTarget(int mip, int slice_start, int slice_count) const;
+        ComPtr<ID3D11DepthStencilView> buildDepthStencil(int mip, int slice_start, int slice_count, bool read_only) const;
+        ComPtr<ID3D11ShaderResourceView> getShaderResource(bool as_array, bool as_cubemap);
+        ComPtr<ID3D11UnorderedAccessView> getUnorderedAccess(int mip, int slice_start, int slice_count, bool as_array);
+
+        void clearResViews();
+
+    private:
+        TextureFmt m_fmt;
+        glm::ivec2 m_size;
+        int m_slices;
+        int m_mips_count;
+        ComPtr<ID3D11Texture2D> m_handle;
+        ComPtr<ID3D11ShaderResourceView> m_srv[4];
+
+        std::unordered_map<glm::ivec3, ComPtr<ID3D11UnorderedAccessView>, ivec3_hasher> m_uav;
+    };
+
+    static int getPixelsSize(TextureFmt fmt);    
 }

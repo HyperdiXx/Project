@@ -251,26 +251,30 @@ namespace EProject
 
     GameWindow::GameWindow(std::wstring wnd_name) :
         Wnd(L"RenderWin", wnd_name, true),
+        m_manager(nullptr),
         m_camera2d(nullptr),
         m_canvas(nullptr, m_camera2d)
     {
         m_device = std::make_shared<GDevice>(getHandle(), false);
         
+        m_manager = AssetManager(m_device);
+
         m_camera2d = Camera2D(m_device);
         m_camera2d.updateScreen();
 
         m_canvas = Canvas(m_device, m_camera2d);
 
-        m_canvas.init();
+        m_canvas.init(m_manager);
        
         for (int y = -10; y < 11; ++y)
         {
             for (int x = -20; x < 21; ++x)
             {
                 glm::vec3 pos(x * 5.5f, y * 5.5f, 0.0f);
-                m_canvas.drawQuad(pos, Color::white);
+                //m_canvas.drawQuad(pos, Color::white);
+                m_canvas.drawQuad(pos);
             }
-        }
+        }       
     }
 
     GameWindow::~GameWindow()
@@ -286,6 +290,7 @@ namespace EProject
         if (ss.mouse_btn[0])
         {
             std::cout << "LMouse button pressed!\n";
+            std::cout << "Mouse coord: " << crd.x << " " << crd.y << "\n";
         }
     }
 

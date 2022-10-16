@@ -3,10 +3,13 @@
 #include "egapi.h"
 #include "emath.h"
 
+#include <unordered_map>
 #include <filesystem>
 
 namespace EProject
 {
+    using stbi_uc = unsigned char;
+
     class File
     {
     public:
@@ -179,6 +182,96 @@ namespace EProject
 
         static std::filesystem::path getDataDir();
         static std::filesystem::path getShadersDir();
+        static std::filesystem::path getTexturesDir();
     };
+
+    class IAsset
+    {
+    public:
+        IAsset() = default;
+        IAsset(const std::filesystem::path& p);
+        virtual ~IAsset() = default;
+
+        virtual bool load(const GDevicePtr& _ptr) = 0;
+        virtual bool unload() = 0;
+        
+        const std::string& getTag() const { return m_tag; }
+        std::string& getTag() { return m_tag; }
+ 
+        bool isValid() const { return m_valid; }
+
+    protected:
+        std::string m_tag = "";
+        std::filesystem::path m_path;
+        bool m_valid = false;
+    };
+
+    struct PathKey
+    {
+        std::filesystem::path path;
+
+        std::size_t operator()(const PathKey& k) const;
+        bool operator==(const PathKey& other) const;
+
+        PathKey() = default;
+        PathKey(const std::filesystem::path& _str) : path(_str) {}
+    };
+
+    class Texture2D : public IAsset
+    {
+    public:
+        Texture2D() = default;
+        ~Texture2D() override;
+        
+        Texture2D(const std::filesystem::path& _path);
+        //Texture2D(const Texture2D& r) {}
+
+        bool load(const GDevicePtr& _ptr) override;
+        bool unload() override;
+
+        TextureFmt getFormat() const { return m_fmt; }
+        glm::ivec2 getSize() const { return m_size; }
+        const void* getData() const;
+
+    private:
+        stbi_uc* m_data = nullptr;
+        TextureFmt m_fmt = TextureFmt::RGBA8;
+        glm::ivec2 m_size = glm::ivec2(0);
+    };
+
+    template<typename T>
+    using Asset = std::shared_ptr<T>;
+
+    class AssetManager final
+    {
+    public:
+
+        explicit AssetManager(const GDevicePtr& _ptr);
+
+        template<typename T>
+        Asset<T> getAsset(const std::filesystem::path& _pathKey)
+        {
+            static_assert(std::is_base_of<IAsset, T>::value, "AssetManager: Asset not from base IAsset class!");
+
+            auto it = m_cache.find(_pathKey);
+            if (it == m_cache.end())
+            {
+                auto result = std::make_unique<T>(_pathKey);
+                bool loaded = result->load(m_ptr);               
+
+                if (loaded)
+                {
+                    it = m_cache.insert({ std::move(_pathKey), std::move(result) }).first;
+                }                                              
+            }
+
+            return std::static_pointer_cast<T>(it->second);
+        }
+
+    private:
+        std::unordered_map<PathKey, std::shared_ptr<IAsset>, PathKey> m_cache;
+        GDevicePtr m_ptr;
+    };
+
 
 }
