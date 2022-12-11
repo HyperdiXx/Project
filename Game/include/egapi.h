@@ -577,14 +577,15 @@ namespace EProject
         void clearResViews();
 
     private:
-        TextureFmt m_fmt;
-        glm::ivec2 m_size;
-        int m_slices;
-        int m_mips_count;
         ComPtr<ID3D11Texture2D> m_handle;
         ComPtr<ID3D11ShaderResourceView> m_srv[4];
 
         std::unordered_map<glm::ivec3, ComPtr<ID3D11UnorderedAccessView>, ivec3_hasher> m_uav;
+        
+        TextureFmt m_fmt;
+        glm::ivec2 m_size;
+        int m_slices;
+        int m_mips_count;
     };
 
     static int getPixelsSize(TextureFmt fmt);    

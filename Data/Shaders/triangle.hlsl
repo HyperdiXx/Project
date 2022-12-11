@@ -26,6 +26,10 @@ VsOutput vs_main(VsInput input)
     VsOutput output;
     
     output.position_clip = float4(input.position_local, 1.0);
+
+    //output.position_clip = mul(output.position_clip, model);
+    //output.position_clip = mul(output.position_clip, _mvp);
+
     output.position_clip = mul(output.position_clip, projection);
 
     //output.color = float4(input.color, 1.0);

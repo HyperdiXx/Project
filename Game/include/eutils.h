@@ -164,7 +164,7 @@ namespace EProject
     public:
         Camera2D(const GDevicePtr& dev);
 
-        void updateScreen();    
+        void updateScreen(float fov);    
     };
 
     class Camera3D : public CameraBase
@@ -224,14 +224,14 @@ namespace EProject
         ~Texture2D() override;
         
         Texture2D(const std::filesystem::path& _path);
-        //Texture2D(const Texture2D& r) {}
+        Texture2D(const Texture2D& r);
 
         bool load(const GDevicePtr& _ptr) override;
         bool unload() override;
 
-        TextureFmt getFormat() const { return m_fmt; }
-        glm::ivec2 getSize() const { return m_size; }
-        const void* getData() const;
+        TextureFmt  getFormat() const { return m_fmt; }
+        glm::ivec2  getSize()   const { return m_size; }
+        const void* getData()   const;
 
     private:
         stbi_uc* m_data = nullptr;

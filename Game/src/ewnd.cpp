@@ -1,5 +1,11 @@
 #include "ewnd.h"
 
+#include "ecs/eentity.h"
+
+#include "world/ecomponents.h"
+
+#include <set>
+
 namespace EProject
 {
     LRESULT CALLBACK DefWndProc(
@@ -255,26 +261,63 @@ namespace EProject
         m_camera2d(nullptr),
         m_canvas(nullptr, m_camera2d)
     {
+        
+        ECS::EEntity ent1 = ECS::EEntity::Create();
+        ent1.AddComponent<TransformComponent>();
+
         m_device = std::make_shared<GDevice>(getHandle(), false);
         
-        m_manager = AssetManager(m_device);
+        m_manager = std::make_shared<AssetManager>(m_device);
 
         m_camera2d = Camera2D(m_device);
-        m_camera2d.updateScreen();
+        m_camera2d.updateScreen(m_zoom);
 
         m_canvas = Canvas(m_device, m_camera2d);
 
         m_canvas.init(m_manager);
        
-        for (int y = -10; y < 11; ++y)
+        int spriteCounter = 0;
+
+        std::vector<glm::vec3> cache = {};
+
+        for (int y = -30; y < 31; ++y)
         {
-            for (int x = -20; x < 21; ++x)
+            for (int x = -30; x < 31; ++x)
             {
-                glm::vec3 pos(x * 5.5f, y * 5.5f, 0.0f);
-                //m_canvas.drawQuad(pos, Color::white);
-                m_canvas.drawQuad(pos);
+                auto isoPos = screenToIso(x, y);
+                glm::vec3 pos(isoPos.x * 4.5f, isoPos.y * 4.5f, 0.0f);
+                
+                if (auto it = std::find(cache.begin(), cache.end(), pos); it == cache.end())
+                {
+                    m_canvas.drawQuad(pos);
+                    cache.emplace_back(pos);
+                    ++spriteCounter;
+                }
             }
-        }       
+        }    
+
+        //cache.clear();
+        //m_canvas.setTextureLayer(1);
+
+        //for (int y = -30; y < 31; ++y)
+        //{
+        //    for (int x = -30; x < 31; ++x)
+        //    {
+        //        auto isoPos = screenToIso(x, y);
+        //        glm::vec3 pos(isoPos.x * 4.5f, isoPos.y * 4.5f, 0.0f);
+
+        //        if (auto it = std::find(cache.begin(), cache.end(), pos); it == cache.end())
+        //        {
+        //            //m_canvas.drawQuad(pos, Color::white);
+        //            m_canvas.drawQuad(pos);
+        //            cache.emplace_back(pos);
+        //            ++spriteCounter;
+        //        }
+        //    }
+        //}
+
+
+        std::cout << "Sprite rendered: " << spriteCounter << "\n";
     }
 
     GameWindow::~GameWindow()
@@ -300,6 +343,12 @@ namespace EProject
 
     void GameWindow::mouseWheel(const glm::ivec2& crd, int delta, const ShiftState& ss)
     {
+        m_zoom += delta;
+
+        glm::fclamp(m_zoom, 0.1f, 90.0f);
+
+        m_camera2d.updateScreen(m_zoom);
+        m_canvas.markDirty();
     }
 
     void GameWindow::mouseDblClick(int btn, const glm::ivec2& crd, const ShiftState& ss)
@@ -342,6 +391,7 @@ namespace EProject
 
     void GameWindow::update(float _ts)
     {
+
     }
 
     void GameWindow::render()
@@ -351,5 +401,10 @@ namespace EProject
         m_canvas.draw();        
         
         m_device->getStates()->pop();
+    }
+
+    glm::ivec2 GameWindow::screenToIso(int x, int y)
+    {
+        return { (x - y) / 2, (x + y) / 4 };
     }
 }

@@ -21,15 +21,17 @@ namespace EProject
         return vertexIndexDataQuadArrayTex[index];
     }
 
-    Canvas::Canvas(const GDevicePtr& _dev, const Camera2D& camera) : 
+    Canvas::Canvas(const GDevicePtr& _dev, const Camera2D& camera) :
         DeviceHolder(_dev),
         m_cameraPtr(std::make_shared<Camera2D>(camera))
     {
         
     }
 
-    void Canvas::init(AssetManager& mng)
+    void Canvas::init(std::shared_ptr<AssetManager>& mng)
     {
+        m_mng = mng;
+
         auto shadersDir = PathHandler::getShadersDir();
         auto texDir = PathHandler::getTexturesDir();
 
@@ -53,13 +55,11 @@ namespace EProject
         m_triangle->compileFromFile(psInputTri);
         m_triangle->create();
         
-        PathKey pKey(texDir / "tree.png");
+        PathKey grassKey(texDir / "grass.png");        
+        Asset<Texture2D> grassTex = mng->getAsset<Texture2D>(grassKey.path);
 
-        Asset<Texture2D> white_tex = mng.getAsset<Texture2D>(pKey.path);
-
-        auto tex2dWhite = m_device->createTexture2D();
-        tex2dWhite->setState(white_tex->getFormat(), white_tex->getSize(), 0, 1, white_tex->getData());
-
+        auto texGrass = m_device->createTexture2D();
+        texGrass->setState(grassTex->getFormat(), grassTex->getSize(), 0, 1, grassTex->getData());
 
         m_posColorLayout = getLayoutSelector()->add("POS", LayoutType::Float, 3)
                                               ->add("COL", LayoutType::Float, 3)
@@ -114,6 +114,7 @@ namespace EProject
 
         m_vb = m_device->createVertexBuffer();
         //m_vb->setState(m_posColorLayout, batchCount * 4, m_vertexQuadBatch.data());
+        
         m_vb->setState(m_posTextureLayout, batchCount * 4, m_vertexQuadBatch.data());
 
         m_ib = m_device->createIndexBuffer();
@@ -123,10 +124,29 @@ namespace EProject
         static const char* albedoTexture = "albedoTex";
 
         m_triangle->setValue(projectionMatrix, m_cameraPtr->getProj());
-
-        m_triangle->setResource(albedoTexture, tex2dWhite);
-
+        m_triangle->setResource(albedoTexture, texGrass);
+       
         isInited = true;
+    }
+
+    void Canvas::setTextureLayer(int index)
+    {
+        static const char* albedoTexture = "albedoTex";
+        
+        auto texDir = PathHandler::getTexturesDir();
+
+        PathKey treeKey(texDir / "tree.png");
+        Asset<Texture2D> treeTex = m_mng->getAsset<Texture2D>(treeKey.path);
+
+        auto texTree = m_device->createTexture2D();
+        texTree->setState(treeTex->getFormat(), treeTex->getSize(), 0, 1, treeTex->getData());
+
+        m_triangle->setResource(albedoTexture, texTree);
+    }
+
+    void Canvas::markDirty()
+    {
+        isDirty = true;
     }
 
     void Canvas::drawQuad(const glm::vec2& _pos)
@@ -144,15 +164,15 @@ namespace EProject
         glm::vec4 qVert3 = transform * glm::vec4(PrimitiveFactory::getVertexPrimitive(4), PrimitiveFactory::getVertexPrimitive(5), 0.0f, 1.0f);
         glm::vec4 qVert4 = transform * glm::vec4(PrimitiveFactory::getVertexPrimitive(6), PrimitiveFactory::getVertexPrimitive(7), 0.0f, 1.0f);
 
-        glm::vec2 uv1 = glm::vec2(PrimitiveFactory::getVertexUVPrimitive(0), PrimitiveFactory::getVertexUVPrimitive(1));
-        glm::vec2 uv2 = glm::vec2(PrimitiveFactory::getVertexUVPrimitive(2), PrimitiveFactory::getVertexUVPrimitive(3));
-        glm::vec2 uv3 = glm::vec2(PrimitiveFactory::getVertexUVPrimitive(4), PrimitiveFactory::getVertexUVPrimitive(5));
-        glm::vec2 uv4 = glm::vec2(PrimitiveFactory::getVertexUVPrimitive(6), PrimitiveFactory::getVertexUVPrimitive(7));
+        glm::vec2 qUv1 = glm::vec2(PrimitiveFactory::getVertexUVPrimitive(0), PrimitiveFactory::getVertexUVPrimitive(1));
+        glm::vec2 qUv2 = glm::vec2(PrimitiveFactory::getVertexUVPrimitive(2), PrimitiveFactory::getVertexUVPrimitive(3));
+        glm::vec2 qUv3 = glm::vec2(PrimitiveFactory::getVertexUVPrimitive(4), PrimitiveFactory::getVertexUVPrimitive(5));
+        glm::vec2 qUv4 = glm::vec2(PrimitiveFactory::getVertexUVPrimitive(6), PrimitiveFactory::getVertexUVPrimitive(7));
 
-        m_vertexQuadBatch.emplace_back(qVert1.xyz(), uv1);
-        m_vertexQuadBatch.emplace_back(qVert2.xyz(), uv2);
-        m_vertexQuadBatch.emplace_back(qVert3.xyz(), uv3);
-        m_vertexQuadBatch.emplace_back(qVert4.xyz(), uv4);
+        m_vertexQuadBatch.emplace_back(qVert1.xyz(), qUv1);
+        m_vertexQuadBatch.emplace_back(qVert2.xyz(), qUv2);
+        m_vertexQuadBatch.emplace_back(qVert3.xyz(), qUv3);
+        m_vertexQuadBatch.emplace_back(qVert4.xyz(), qUv4);
 
         isDirty = true;
     }
@@ -164,6 +184,7 @@ namespace EProject
         glm::vec3 scale = { 5.0f, 5.0f, 1.0f };
         
         static glm::mat4 matrix = glm::mat4(1.0f);
+
         glm::mat4 transform = glm::translate(matrix, _pos) * glm::scale(matrix, scale);
 
         glm::vec4 qVert1 = transform * glm::vec4(PrimitiveFactory::getVertexPrimitive(0), PrimitiveFactory::getVertexPrimitive(1), 0.0f, 1.0f);
@@ -186,17 +207,40 @@ namespace EProject
 
     void Canvas::draw()
     {
-        if (m_vertexQuadBatch.empty())
+        if (!shouldDraw())
         {
             return;
         }
 
+        updateCanvasBatch();
+
+        drawImpl();
+    }
+
+    bool Canvas::shouldDraw() const
+    {
+        if (m_vertexQuadBatch.empty())
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    void Canvas::updateCanvasBatch()
+    {
         if (isDirty)
-        {            
+        {
+            static const char* projectionMatrix = "projection";            
+            m_triangle->setValue(projectionMatrix, m_cameraPtr->getProj());
+            
             m_vb->setSubData(0, static_cast<int>(m_vertexQuadBatch.size()), m_vertexQuadBatch.data());
             isDirty = false;
         }
+    }
 
+    void Canvas::drawImpl()
+    {
         m_triangle->setInputBuffers(m_vb, m_ib, {}, 0);
 
         m_device->getStates()->setBlend(true, Blend::Src_Alpha, Blend::Inv_Src_Alpha);
@@ -204,9 +248,5 @@ namespace EProject
 
         m_triangle->drawIndexed(PrimTopology::Triangle, 0, m_ib->getIndexCount());
     }
-
-
-
-
 
 }

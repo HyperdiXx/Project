@@ -65,14 +65,21 @@ namespace EProject
         virtual void fixedUpdate(float _ts);
         virtual void update(float _ts);
         virtual void render();
+
+    private:
+
+        glm::ivec2 screenToIso(int x, int y);
+
     private:
 
         std::shared_ptr<GDevice> m_device;
        
-        AssetManager m_manager;
+        std::shared_ptr<AssetManager> m_manager;
 
         Camera2D m_camera2d;
         Canvas m_canvas;
+
+        float m_zoom = 60.0f;
     };
 
     void MessageLoop(const std::function<void()> idle_proc);

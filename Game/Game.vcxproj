@@ -141,6 +141,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="src\ecs\eentity.cpp" />
     <ClCompile Include="src\egraphics.cpp" />
     <ClCompile Include="src\egapi.cpp" />
     <ClCompile Include="src\eutils.cpp" />
@@ -148,6 +149,10 @@
     <ClCompile Include="src\main.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="include\ecs\ecomponent.h" />
+    <ClInclude Include="include\ecs\eecs.h" />
+    <ClInclude Include="include\ecs\eentity.h" />
+    <ClInclude Include="include\ecs\esystem.h" />
     <ClInclude Include="include\edx11api.h" />
     <ClInclude Include="include\egapi.h" />
     <ClInclude Include="include\egraphics.h" />
@@ -155,6 +160,7 @@
     <ClInclude Include="include\eutils.h" />
     <ClInclude Include="include\ewnd.h" />
     <ClInclude Include="include\glmh.h" />
+    <ClInclude Include="include\world\ecomponents.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

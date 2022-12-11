@@ -69,13 +69,22 @@ namespace EProject
         Canvas() = default;
         Canvas(const GDevicePtr& _dev, const Camera2D& camera);
 
-        void init(AssetManager& mng);
+        void init(std::shared_ptr<AssetManager>&);
+
+        void setTextureLayer(int index);
+        void markDirty();
 
         void drawQuad(const glm::vec3& _pos, const glm::vec4& _color);
         void drawQuad(const glm::vec2& _pos, const glm::vec3& _color);
         void drawQuad(const glm::vec2& _pos);
         
         void draw();
+
+    private:
+
+        bool shouldDraw() const;
+        void updateCanvasBatch();
+        void drawImpl();
 
     private:
 
@@ -91,6 +100,7 @@ namespace EProject
         const Layout* m_posTextureLayout = nullptr;
 
         Camera2DPtr m_cameraPtr;
+        std::shared_ptr<AssetManager> m_mng;
 
         //std::vector<VertexPosColor> m_vertexQuadBatch = {};
         std::vector<VertexPosTex> m_vertexQuadBatch = {};

@@ -1769,6 +1769,7 @@ namespace EProject
 
     void GPUTexture2D::readBack(void* data, int mip, int array_slice)
     {
+
     }
 
     ID3D11ShaderResourceView* GPUTexture2D::_getShaderResView(bool as_array, bool as_cubemap)

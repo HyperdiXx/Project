@@ -63,13 +63,13 @@ namespace EProject
     {
     }
 
-    void Camera2D::updateScreen()
+    void Camera2D::updateScreen(float fov)
     {        
         auto fbSize = m_ubo->getDevice()->currentFrameBufferSize();
 
         float aspectRatio = (float)fbSize.x / (float)fbSize.y;
 
-        float camFOV = 60.0f;
+        float camFOV = fov;
         float bottom = -camFOV;
         float top = camFOV;
         float left = bottom * aspectRatio;
@@ -108,14 +108,13 @@ namespace EProject
         return path == other.path;
     }
 
-    /*Texture2D::Texture2D(const Texture2D& _rhs)
+    Texture2D::Texture2D(const Texture2D& _rhs)
     {
         m_fmt = _rhs.m_fmt;
         m_size = _rhs.m_size;
         
-        //memcpy((char*)m_data, _rhs.m_data, sizeof(_rhs.m_data));
-
-    }*/
+        memcpy((char*)m_data, _rhs.m_data, sizeof(_rhs.m_data));
+    }
 
     Texture2D::~Texture2D()
     {
@@ -139,12 +138,12 @@ namespace EProject
 
         stbi_set_flip_vertically_on_load(0);
 
-        int dont_care;
+        int comp;
         int targetformat = STBI_rgb_alpha;
-        m_data = stbi_load(m_path.u8string().c_str(), &m_size.x, &m_size.y, &dont_care, targetformat);
+        m_data = stbi_load(m_path.u8string().c_str(), &m_size.x, &m_size.y, &comp, targetformat);
         if (!m_data)
         {
-            throw std::runtime_error("load failed: " + m_path.u8string());
+            throw std::runtime_error("Texture2D: Load failed: " + m_path.u8string());
         }
 
         m_fmt = TextureFmt::RGBA8;
@@ -155,6 +154,13 @@ namespace EProject
 
     bool Texture2D::unload()
     {
+        if (m_data)
+        {
+            stbi_image_free(m_data);
+
+            return true;
+        }
+
         return false;
     }
 
