@@ -59,39 +59,40 @@ namespace EProject
 
         std::size_t operator() (const Sampler& s) const
         {
-            //return MurmurHash2(this, sizeof(Sampler));
-            return 1;
+            return std::hash<TexFilter>()(filter) ^ std::hash<TexFilter>()(mipfilter) ^ std::hash<int>()(anisotropy) ^
+                   std::hash<TexWrap>()(wrap_x) ^ std::hash<TexWrap>()(wrap_y) ^ std::hash<TexWrap>()(wrap_z) ^ 
+                   std::hash<glm::vec4>()(border) ^ std::hash<Compare>()(comparison);
         }
     };
 
-    const static Sampler cSampler_Linear
+    constexpr static Sampler cSampler_Linear
     {
-        TexFilter::Linear , TexFilter::Linear , 16 ,
+        TexFilter::Linear, TexFilter::Linear, 16,
         TexWrap::Repeat, TexWrap::Repeat, TexWrap::Repeat, {0,0,0,0},
         Compare::Never
     };
 
-    const static Sampler cSampler_LinearClamped
+    constexpr static Sampler cSampler_LinearClamped
     {
-        TexFilter::Linear , TexFilter::Linear , 16 ,
+        TexFilter::Linear, TexFilter::Linear, 16,
         TexWrap::Clamp, TexWrap::Clamp, TexWrap::Clamp, {0,0,0,0},
         Compare::Never
     };
 
-    const static Sampler cSampler_NoFilter
+    constexpr static Sampler cSampler_NoFilter
     {
-        TexFilter::Point , TexFilter::None , 0 ,
+        TexFilter::Point, TexFilter::None, 0,
         TexWrap::Repeat, TexWrap::Repeat, TexWrap::Repeat, {0,0,0,0},
         Compare::Never
     };
 
     struct DrawIndexedCmd
     {
-        UINT IndexCount;
-        UINT InstanceCount;
-        UINT StartIndex;
-        INT  BaseVertex;
-        UINT BaseInstance;
+        UINT indexCount;
+        UINT instanceCount;
+        UINT startIndex;
+        INT  baseVertex;
+        UINT baseInstance;
     };
 
     class States
@@ -163,7 +164,9 @@ namespace EProject
     class UniformBuffer;
     class StructuredBuffer;
     class GPUTexture2D;
+    class Framebuffer;
 
+    using FrameBufferPtr = std::shared_ptr<Framebuffer>;
     using GPUTexture2DPtr = std::shared_ptr<GPUTexture2D>;
     using ShaderProgramPtr = std::shared_ptr<ShaderProgram>;
     using VertexBufferPtr = std::shared_ptr<VertexBuffer>;
@@ -178,11 +181,13 @@ namespace EProject
         friend class IndexBuffer;
         friend class UniformBuffer;
         friend class StructuredBuffer;
+        friend class GPUTexture2D;
+        friend class Framebuffer;
     public:
         GDevice(HWND wnd, bool sRGB);
         ~GDevice();
 
-        //FrameBufferPtr setFrameBuffer(const FrameBufferPtr& fbo, bool update_viewport = true);
+        FrameBufferPtr setFrameBuffer(const FrameBufferPtr& fbo, bool update_viewport = true);
         glm::ivec2 currentFrameBufferSize() const;
 
         ID3D11Device* getDX11Device() const;
@@ -192,18 +197,17 @@ namespace EProject
 
         ShaderProgram* getActiveProgram();
 
-        //FrameBufferPtr getActiveFrameBuffer() const;
-        //Program* getActiveProgram();
+        FrameBufferPtr getActiveFrameBuffer() const;
 
-        /*FrameBufferPtr Create_FrameBuffer();        
-        Texture3DPtr Create_Texture3D();*/
-        
+        FrameBufferPtr createFrameBuffer();
         GPUTexture2DPtr createTexture2D();
         IndexBufferPtr createIndexBuffer();
         VertexBufferPtr createVertexBuffer();
         ShaderProgramPtr createShaderProgram();
         UniformBufferPtr createUniformBuffer();
         StructuredBufferPtr createStructuredBuffer();
+
+        /*Texture3DPtr Create_Texture3D();*/
 
         void beginFrame();
         void endFrame();
@@ -214,24 +218,35 @@ namespace EProject
     protected:
 
         ShaderProgram* m_activeProgram = nullptr;
+        std::weak_ptr<Framebuffer> m_activeFbo;
+        Framebuffer* m_activeFboPtr = nullptr;
 
     private:
 
         void setDefaultFramebuffer();
         void setViewport(const glm::vec2& size);
+
+        ID3D11SamplerState* obtainSampler(const Sampler& s);
+
+
     private:
         HWND m_hwnd;
 
         ComPtr<ID3D11Device> m_dev;
         ComPtr<ID3D11DeviceContext> m_context;
         ComPtr<IDXGISwapChain> m_swapChain;
+        
         ComPtr<ID3D11Texture2D> m_backBuffer;
+        ComPtr<ID3D11Texture2D> m_depthStencil;
+
         ComPtr<ID3D11RenderTargetView> m_RTView;
+        ComPtr<ID3D11DepthStencilView> m_depthStencilView;
+
+        std::unordered_map<Sampler, ComPtr<ID3D11SamplerState>, Sampler> m_samplers;
 
         std::unique_ptr<States> m_states;
         glm::ivec2 m_lastWndSize;
         bool m_isSrgb;
-
     };
 
     using GDevicePtr = std::shared_ptr<GDevice>;
@@ -411,7 +426,7 @@ namespace EProject
     class StructuredBuffer : public DeviceHolder
     {
         friend class ShaderProgram;
-        friend class FrameBuffer;
+        friend class Framebuffer;
     public:
         StructuredBuffer(const GDevicePtr& device);
 
@@ -536,7 +551,7 @@ namespace EProject
 
     class GPUTexture2D : public DeviceHolder 
     {
-        friend class FrameBuffer;
+        friend class Framebuffer;
         friend class ShaderProgram;   
     public:
         GPUTexture2D(const GDevicePtr& device);
@@ -556,14 +571,16 @@ namespace EProject
     private:
         struct ivec3_hasher
         {
-            std::size_t operator() (const glm::ivec3& v) const {
+            std::size_t operator() (const glm::ivec3& v) const
+            {
                 return std::hash<int>()(v.x) ^ std::hash<int>()(v.y) ^ std::hash<int>()(v.z);
             }
         };
         
         struct ivec2_hasher 
         {
-            std::size_t operator() (const glm::ivec2& v) const {
+            std::size_t operator() (const glm::ivec2& v) const
+            {
                 return std::hash<int>()(v.x) ^ std::hash<int>()(v.y);
             }
         };
@@ -589,4 +606,107 @@ namespace EProject
     };
 
     static int getPixelsSize(TextureFmt fmt);    
+
+    class Framebuffer : public DeviceHolder
+    {
+        friend class GDevice;
+    private:
+        struct Tex2DParams
+        {
+            int mip;
+            int slice_start;
+            int slice_count;
+            bool read_only;
+            bool as_array;
+            Tex2DParams();
+            Tex2DParams(int mip, int slice_start, int slice_count, bool ronly, bool as_array);
+            bool operator == (const Tex2DParams& b);
+        };
+        
+        enum class UAV_slot_kind { empty, tex, buf };
+        struct UAVSlot
+        {
+            UAV_slot_kind kind;
+            GPUTexture2DPtr tex;
+            Tex2DParams tex_params;
+            StructuredBufferPtr buf;
+            ComPtr<ID3D11UnorderedAccessView> view;
+            int initial_counter;
+            
+            UAVSlot()
+            {
+                kind = UAV_slot_kind::empty;
+                this->tex = nullptr;
+                this->buf = nullptr;
+            }
+            
+            UAVSlot(const GPUTexture2DPtr& tex, int mip, int slice_start, int slice_count, bool as_array)
+            {
+                kind = UAV_slot_kind::tex;
+                buf = nullptr;
+                this->tex = tex;
+                tex_params.mip = mip;
+                tex_params.read_only = false;
+                tex_params.slice_count = slice_count;
+                tex_params.slice_start = slice_start;
+                tex_params.as_array = as_array;
+                this->initial_counter = -1;
+            }
+            
+            UAVSlot(const StructuredBufferPtr& buf, int initial_counter)
+            {
+                kind = UAV_slot_kind::buf;
+                this->buf = buf;
+                this->tex = nullptr;
+                this->initial_counter = initial_counter;
+            }
+        };
+
+    public:
+
+        Framebuffer(const GDevicePtr& device);
+        ~Framebuffer();
+
+        void clearColorSlot(int slot, const glm::vec4& color);
+        void clearDS(float depth, bool clear_depth = true, char stencil = 0, bool clear_stencil = false);
+
+        void setColorSlot(int slot, const GPUTexture2DPtr& tex, int mip = 0, int slice_start = 0, int slice_count = 1);
+        void setDS(const GPUTexture2DPtr& tex, int mip = 0, int slice_start = 0, int slice_count = 1, bool readonly = false);
+        GPUTexture2DPtr getColorSlot(int slot) const;
+        GPUTexture2DPtr getDS() const;
+
+        void clearUAV(int slot, uint32_t v);
+        void setUAV(int slot, const GPUTexture2DPtr& tex, int mip = 0, int slice_start = 0, int slice_count = 1, bool as_array = false);
+        void setUAV(int slot, const StructuredBufferPtr& buf, int initial_counter = -1);
+
+        void blitToDefaultFBO(int from_slot);
+
+        void setSizeFromWindow();
+        void setSize(const glm::ivec2& xy);
+        glm::ivec2 getSize() const;
+    private:
+        void prepareSlots();
+    private:
+        
+        GPUTexture2DPtr m_tex[D3D11_SIMULTANEOUS_RENDER_TARGET_COUNT];
+        GPUTexture2DPtr m_depth;
+
+        Tex2DParams m_tex_params[D3D11_SIMULTANEOUS_RENDER_TARGET_COUNT];
+        Tex2DParams m_depth_params;
+
+        UAVSlot m_uav[D3D11_SIMULTANEOUS_RENDER_TARGET_COUNT + D3D11_PS_CS_UAV_REGISTER_COUNT];
+
+        ComPtr<ID3D11RenderTargetView> m_color_views[D3D11_SIMULTANEOUS_RENDER_TARGET_COUNT];
+        ComPtr<ID3D11DepthStencilView> m_depth_view;
+
+        std::vector<ID3D11RenderTargetView*> m_colors_to_bind;
+        std::vector<ID3D11UnorderedAccessView*> m_uav_to_bind;
+        std::vector<UINT> m_uav_initial_counts;
+
+        glm::ivec2 m_size;
+        int m_rtv_count = 0;
+        int m_uav_to_bind_count = 0;
+
+        bool m_colors_to_bind_dirty = false;
+    };
 }

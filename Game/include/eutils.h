@@ -10,6 +10,9 @@ namespace EProject
 {
     using stbi_uc = unsigned char;
 
+    static constexpr glm::vec3 MVEK3UP = glm::vec3(0.0f, 1.0f, 0.0f);
+    static constexpr glm::vec3 MVEK3FORWARD = glm::vec3(0.0f, 0.0f, 1.0f);
+
     class File
     {
     public:
@@ -123,9 +126,11 @@ namespace EProject
             
             void updateViewProj()
             {
-                view_proj = proj * view;
-                view_inv = glm::inverse(view);
-                proj_inv = glm::inverse(proj);
+                // DirectX
+                view_proj = glm::transpose(proj * view);
+                
+                view_inv = glm::inverse(glm::transpose(view));
+                proj_inv = glm::inverse(glm::transpose(proj));
                 view_proj_inv = glm::inverse(view_proj);
             }
 
@@ -142,7 +147,7 @@ namespace EProject
         };
     public:
 
-        CameraBase(const GDevicePtr& device);
+        explicit CameraBase(const GDevicePtr& device);
         virtual ~CameraBase();
 
         glm::mat4 getView() const;
@@ -171,10 +176,24 @@ namespace EProject
     {
     public:
         Camera3D(const GDevicePtr& dev);
+
+        void setPosition(const glm::vec3& pos);
+        const glm::vec3& getPosition() const;
+
+        void setRotation(const glm::vec3& rot);
+        const glm::vec3& getRotation() const;
+
+        void lookAt(const glm::vec3& pos, const glm::vec3& dir, const glm::vec3& up);
+
+    private:
+        glm::vec3 m_pos = { 0.0f, 0.0f, -10.0f };
+        glm::vec3 m_rot = { 0.0f, 0.0f, 0.0f };
     };
 
     using Camera2DPtr = std::shared_ptr<Camera2D>;
     using Camera3DPtr = std::shared_ptr<Camera3D>;
+    
+    class AssetManager;
 
     class PathHandler
     {
@@ -183,6 +202,7 @@ namespace EProject
         static std::filesystem::path getDataDir();
         static std::filesystem::path getShadersDir();
         static std::filesystem::path getTexturesDir();
+        static std::filesystem::path getModelsDir();
     };
 
     class IAsset
@@ -191,6 +211,8 @@ namespace EProject
         IAsset() = default;
         IAsset(const std::filesystem::path& p);
         virtual ~IAsset() = default;
+
+        virtual void init() = 0;
 
         virtual bool load(const GDevicePtr& _ptr) = 0;
         virtual bool unload() = 0;
@@ -225,6 +247,8 @@ namespace EProject
         
         Texture2D(const std::filesystem::path& _path);
         Texture2D(const Texture2D& r);
+
+        void init() override;
 
         bool load(const GDevicePtr& _ptr) override;
         bool unload() override;
@@ -261,6 +285,7 @@ namespace EProject
 
                 if (loaded)
                 {
+                    result->init();
                     it = m_cache.insert({ std::move(_pathKey), std::move(result) }).first;
                 }                                              
             }
@@ -273,5 +298,5 @@ namespace EProject
         GDevicePtr m_ptr;
     };
 
-
+    using AssetManagerPtr = std::shared_ptr<AssetManager>;
 }

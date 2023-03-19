@@ -56,7 +56,7 @@ namespace EProject
         m_stencil_ref = 0xff;
         m_d_desc.DepthEnable = false;
         m_d_desc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL;
-        m_d_desc.DepthFunc = D3D11_COMPARISON_GREATER;
+        m_d_desc.DepthFunc = D3D11_COMPARISON_LESS;
         m_d_desc.StencilEnable = false;
         m_d_desc.StencilReadMask = 0xff;
         m_d_desc.StencilWriteMask = 0xff;
@@ -142,7 +142,7 @@ namespace EProject
 
     void States::setDepthEnable(bool enable)
     {
-        if (bool(m_d_desc.DepthEnable) != enable) 
+        if (static_cast<bool>(m_d_desc.DepthEnable) != enable) 
         {
             m_d_desc.DepthEnable = enable;
             m_d_state = nullptr;
@@ -190,7 +190,7 @@ namespace EProject
 
         int n = (rt_index < 0) ? 0 : rt_index;
         
-        if (bool(m_b_desc.RenderTarget[n].BlendEnable) != enable)
+        if (static_cast<bool>(m_b_desc.RenderTarget[n].BlendEnable) != enable)
         {
             m_b_desc.RenderTarget[n].BlendEnable = enable;
             m_b_state = nullptr;
@@ -248,7 +248,7 @@ namespace EProject
         }
         
         int n = (rt_index < 0) ? 0 : rt_index;
-        if (bool(m_b_desc.RenderTarget[n].RenderTargetWriteMask) != enable)
+        if (static_cast<bool>(m_b_desc.RenderTarget[n].RenderTargetWriteMask) != enable)
         {
             m_b_desc.RenderTarget[n].RenderTargetWriteMask = enable ? D3D11_COLOR_WRITE_ENABLE_ALL : 0;
             m_b_state = nullptr;
@@ -332,10 +332,160 @@ namespace EProject
         getD3DErr(m_dev->CreateRenderTargetView(m_backBuffer.Get(), nullptr, &m_RTView));
 
         m_states = std::make_unique<States>(m_dev.Get(), m_context.Get());
+
+        D3D11_TEXTURE2D_DESC descDepth;
+        ZeroMemory(&descDepth, sizeof(descDepth));
+        descDepth.Width = m_lastWndSize.x;
+        descDepth.Height = m_lastWndSize.y;
+        descDepth.MipLevels = 1;
+        descDepth.ArraySize = 1;
+        descDepth.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+        descDepth.SampleDesc.Count = 1;
+        descDepth.SampleDesc.Quality = 0;
+        descDepth.Usage = D3D11_USAGE_DEFAULT;
+        descDepth.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+        descDepth.CPUAccessFlags = 0;
+        descDepth.MiscFlags = 0;
+
+        getD3DErr(m_dev->CreateTexture2D(&descDepth, nullptr, &m_depthStencil));
+
+        D3D11_DEPTH_STENCIL_VIEW_DESC descDSV;
+        ZeroMemory(&descDSV, sizeof(descDSV));
+        descDSV.Format = descDepth.Format;
+        descDSV.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+        descDSV.Texture2D.MipSlice = 0;
+        getD3DErr(m_dev->CreateDepthStencilView(m_depthStencil.Get(), 0, &m_depthStencilView));
     }
 
     GDevice::~GDevice()
     {
+    }
+
+    FrameBufferPtr GDevice::setFrameBuffer(const FrameBufferPtr& fbo, bool update_viewport)
+    {
+        FrameBufferPtr currentFbo = m_activeFbo.lock();
+        std::weak_ptr<Framebuffer> m_new_fbo = fbo;
+
+        if (m_activeFboPtr != fbo.get())
+        {
+            m_activeFbo = m_new_fbo;
+            m_activeFboPtr = fbo.get();
+
+            if (m_activeFboPtr)
+            {
+                m_activeFboPtr->prepareSlots();
+                m_context->OMSetRenderTargetsAndUnorderedAccessViews(
+                    UINT(m_activeFboPtr->m_rtv_count),
+                    m_activeFboPtr->m_colors_to_bind.data(),
+                    m_activeFboPtr->m_depth_view.Get(),
+                    UINT(m_activeFboPtr->m_rtv_count),
+                    UINT(glm::clamp<int>(int(m_activeFboPtr->m_uav_to_bind.size()) - m_activeFboPtr->m_rtv_count, 0, 7)),
+                    m_activeFboPtr->m_uav_to_bind.data(),
+                    m_activeFboPtr->m_uav_initial_counts.data()
+                );
+            }
+            else 
+            {
+                setDefaultFramebuffer();
+            }
+        }
+        if (update_viewport)
+        {
+            setViewport(currentFrameBufferSize());
+        }
+
+
+        return currentFbo;
+    }
+
+    ID3D11SamplerState* GDevice::obtainSampler(const Sampler& s)
+    {
+        auto it = m_samplers.find(s);
+        if (it == m_samplers.end()) 
+        {
+            D3D11_SAMPLER_DESC desc = {};
+
+            bool iscomparison = s.comparison != Compare::Never;
+
+            if (s.anisotropy > 1)
+            {
+                desc.Filter = iscomparison ? D3D11_FILTER_COMPARISON_ANISOTROPIC : D3D11_FILTER_ANISOTROPIC;
+            }
+            else
+            {
+                if (iscomparison)
+                {
+                    if (s.filter == TexFilter::Linear)
+                    {
+                        if (s.mipfilter == TexFilter::Linear)
+                        {
+                            desc.Filter = D3D11_FILTER_COMPARISON_MIN_MAG_MIP_LINEAR;
+                        }
+                        else 
+                        {
+                            desc.Filter = D3D11_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT;
+                        }
+                    }
+                    else
+                    {
+                        if (s.mipfilter == TexFilter::Linear)
+                        {
+                            desc.Filter = D3D11_FILTER_COMPARISON_MIN_MAG_POINT_MIP_LINEAR;
+                        }
+                        else 
+                        {
+                            desc.Filter = D3D11_FILTER_COMPARISON_MIN_MAG_MIP_POINT;
+                        }
+                    }
+                }
+                else 
+                {
+                    if (s.filter == TexFilter::Linear)
+                    {
+                        if (s.mipfilter == TexFilter::Linear)
+                        {
+                            desc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+                        }
+                        else 
+                        {
+                            desc.Filter = D3D11_FILTER_MIN_MAG_LINEAR_MIP_POINT;
+                        }
+                    }
+                    else
+                    {
+                        if (s.mipfilter == TexFilter::Linear)
+                        {
+                            desc.Filter = D3D11_FILTER_MIN_MAG_POINT_MIP_LINEAR;
+                        }
+                        else 
+                        {
+                            desc.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
+                        }
+                    }
+                }
+            }
+
+            desc.AddressU = toDX(s.wrap_x);
+            desc.AddressV = toDX(s.wrap_x);
+            desc.AddressW = toDX(s.wrap_x);
+            desc.MipLODBias = 0;
+            desc.MaxAnisotropy = s.anisotropy;
+            desc.ComparisonFunc = toDX(s.comparison);
+            desc.BorderColor[0] = s.border.x;
+            desc.BorderColor[1] = s.border.y;
+            desc.BorderColor[2] = s.border.z;
+            desc.BorderColor[3] = s.border.w;
+            desc.MinLOD = 0;
+            desc.MaxLOD = s.mipfilter == TexFilter::None ? 0 : D3D11_FLOAT32_MAX;
+
+            ComPtr<ID3D11SamplerState> sampler;
+            getD3DErr(m_dev->CreateSamplerState(&desc, &sampler));
+            m_samplers.insert({ s, sampler });
+            
+            return sampler.Get();
+        }
+        
+        return it->second.Get();
     }
 
     glm::ivec2 GDevice::currentFrameBufferSize() const
@@ -358,9 +508,19 @@ namespace EProject
         return m_states.get();
     }
 
+    FrameBufferPtr GDevice::getActiveFrameBuffer() const
+    {
+        return m_activeFbo.lock();
+    }
+
     ShaderProgram* GDevice::getActiveProgram()
     {
         return m_activeProgram;
+    }
+
+    FrameBufferPtr GDevice::createFrameBuffer()
+    {
+        return std::make_shared<Framebuffer>(shared_from_this());
     }
 
     GPUTexture2DPtr GDevice::createTexture2D()
@@ -403,20 +563,27 @@ namespace EProject
         {
             m_lastWndSize = new_wnd_size;
 
-            ID3D11RenderTargetView* tmp = nullptr;
-            m_context->OMSetRenderTargetsAndUnorderedAccessViews(1, &tmp, nullptr, 0, 0, nullptr, nullptr);
+            ID3D11RenderTargetView* tmpRT = nullptr;
+            ID3D11DepthStencilView* tmpDS = nullptr;
+            m_context->OMSetRenderTargetsAndUnorderedAccessViews(1, &tmpRT, tmpDS, 0, 0, nullptr, nullptr);
             m_RTView = nullptr;
             m_backBuffer = nullptr;
             getD3DErr(m_swapChain->ResizeBuffers(1, m_lastWndSize.x, m_lastWndSize.y, m_isSrgb ? DXGI_FORMAT_R8G8B8A8_UNORM_SRGB : DXGI_FORMAT_R8G8B8A8_UNORM, 0));
             getD3DErr(m_swapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), &m_backBuffer));
             getD3DErr(m_dev->CreateRenderTargetView(m_backBuffer.Get(), nullptr, &m_RTView));
+            getD3DErr(m_dev->CreateDepthStencilView(m_depthStencil.Get(), nullptr, &m_depthStencilView));
         }
 
         setDefaultFramebuffer();
         setViewport(m_lastWndSize);
-
+        
         const float clearColor[4] = { 0.75f, 0.75f, 0.75f, 1.0f };
-        m_context->ClearRenderTargetView(m_RTView.Get(), clearColor);       
+        m_context->ClearRenderTargetView(m_RTView.Get(), clearColor);    
+
+        if (auto* dsView = m_depthStencilView.Get())
+        {
+            m_context->ClearDepthStencilView(dsView, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
+        }
     }
 
     void GDevice::endFrame()
@@ -436,8 +603,10 @@ namespace EProject
 
     void GDevice::setDefaultFramebuffer()
     {
-        ID3D11RenderTargetView* def = m_RTView.Get();
-        getDX11DeviceContext()->OMSetRenderTargetsAndUnorderedAccessViews(1, &def, nullptr, 0, 0, nullptr, nullptr);
+        ID3D11RenderTargetView* defRT = m_RTView.Get();
+        ID3D11DepthStencilView* defDS = m_depthStencilView.Get();
+
+        getDX11DeviceContext()->OMSetRenderTargetsAndUnorderedAccessViews(1, &defRT, defDS, 0, 0, nullptr, nullptr);
     }
 
     void GDevice::setViewport(const glm::vec2& size)
@@ -475,9 +644,9 @@ namespace EProject
         
         D3D_SHADER_MACRO defines[] =
         {
-                "HLSL5", "1",
-                "DISABLE_WAVE_INTRINSICS", "1",
-                NULL, NULL
+            "HLSL5", "1",
+            "DISABLE_WAVE_INTRINSICS", "1",
+            NULL, NULL
         };
 
         int flags = 0;
@@ -491,7 +660,7 @@ namespace EProject
         if (FAILED(hr) && errorMessages)
         {
             const char* errorMsg = (const char*)errorMessages->GetBufferPointer();
-            int ch = 1;
+            
             //MessageBox(nullptr, errorMsg, L"Shader Compilation Error", MB_RETRYCANCEL);
         }
 
@@ -903,6 +1072,24 @@ namespace EProject
 
     void ShaderProgram::setResource(const char* name, const Sampler& s)
     {
+        int idx = findSlot(name);
+
+        if (idx < 0)
+        {
+            return;
+        }
+
+        ShaderSlot& slot = m_slots[idx];
+        ID3D11SamplerState* new_sampler = m_device->obtainSampler(s);
+
+        if (slot.sampler != new_sampler) 
+        {
+            slot.sampler = new_sampler;
+            if (isProgramActive())
+            {
+                slot.select(m_device->getDX11DeviceContext());
+            }
+        }
     }
 
     void ShaderProgram::selectInputBuffers()
@@ -1897,4 +2084,260 @@ namespace EProject
         m_srv[3] = nullptr;
     }
 
+    Framebuffer::Framebuffer(const GDevicePtr& device) : DeviceHolder(device)
+    {
+    }
+
+    Framebuffer::~Framebuffer()
+    {
+        if (m_device->m_activeFboPtr == this)
+        {
+            m_device->setFrameBuffer(nullptr);
+        }
+    }
+
+    void Framebuffer::clearColorSlot(int slot, const glm::vec4& color)
+    {
+        m_device->getDX11DeviceContext()->ClearRenderTargetView(m_color_views[slot].Get(), (float*)&color);
+    }
+
+    void Framebuffer::clearDS(float depth, bool clear_depth, char stencil, bool clear_stencil)
+    {
+        if (m_depth_view) 
+        {
+            UINT flags = 0;
+            flags |= clear_depth ? D3D11_CLEAR_DEPTH : 0;
+            flags |= clear_stencil ? D3D11_CLEAR_STENCIL : 0;
+            m_device->getDX11DeviceContext()->ClearDepthStencilView(m_depth_view.Get(), flags, depth, stencil);
+        }
+    }
+
+    void Framebuffer::setColorSlot(int slot, const GPUTexture2DPtr& tex, int mip, int slice_start, int slice_count)
+    {
+        if (m_tex[slot] != tex)
+        {
+            m_tex[slot] = tex;
+            m_color_views[slot] = nullptr;
+            m_colors_to_bind_dirty = true;
+            m_colors_to_bind.clear();
+        }
+        
+        Tex2DParams new_params(mip, slice_start, slice_count, false, false);
+        
+        if (!(m_tex_params[slot] == new_params))
+        {
+            m_tex_params[slot] = new_params;
+            m_color_views[slot] = nullptr;
+            m_colors_to_bind_dirty = true;
+            m_colors_to_bind.clear();
+        }
+    }
+
+    void Framebuffer::setDS(const GPUTexture2DPtr& tex, int mip, int slice_start, int slice_count, bool readonly)
+    {
+        if (m_depth != tex)
+        {
+            m_depth = tex;
+            m_depth_view = nullptr;
+        }
+        
+        Tex2DParams new_params(mip, slice_start, slice_count, readonly, false);
+        
+        if (!(m_depth_params == new_params))
+        {
+            m_depth_params = new_params;
+            m_depth_view = nullptr;
+        }
+    }
+
+    GPUTexture2DPtr Framebuffer::getColorSlot(int slot) const
+    {
+        return m_tex[slot];
+    }
+
+    GPUTexture2DPtr Framebuffer::getDS() const
+    {
+        return m_depth;
+    }
+
+    void Framebuffer::clearUAV(int slot, uint32_t v)
+    {
+        UINT clear_value[4] = { v,v,v,v };
+        m_device->getDX11DeviceContext()->ClearUnorderedAccessViewUint(m_uav_to_bind[slot], clear_value);
+    }
+
+    void Framebuffer::setUAV(int slot, const GPUTexture2DPtr& tex, int mip, int slice_start, int slice_count, bool as_array)
+    {
+        m_uav_to_bind_count = -1;
+        m_uav_to_bind.clear();
+        m_uav[slot] = UAVSlot(tex, mip, slice_start, slice_count, as_array);
+    }
+
+    void Framebuffer::setUAV(int slot, const StructuredBufferPtr& buf, int initial_counter)
+    {
+        m_uav_to_bind_count = -1;
+        m_uav_to_bind.clear();
+        m_uav[slot] = UAVSlot(buf, initial_counter);
+    }
+
+    void Framebuffer::blitToDefaultFBO(int from_slot)
+    {
+        if (!m_tex[from_slot])
+        {
+            return;
+        }
+        
+        if (!m_tex[from_slot]->m_handle)
+        {
+            return;
+        }
+
+        ID3D11Texture2D* tex = m_tex[from_slot]->m_handle.Get();
+        D3D11_BOX src_box;
+        src_box.left = 0;
+        src_box.right = m_tex[from_slot]->m_size.x >> m_tex_params[from_slot].mip;
+        src_box.top = 0;
+        src_box.bottom = m_tex[from_slot]->m_size.y >> m_tex_params[from_slot].mip;
+        src_box.front = 0;
+        src_box.back = 1;
+        UINT src_subres = D3D11CalcSubresource(m_tex_params[from_slot].mip, m_tex_params[from_slot].slice_start, m_tex[from_slot]->m_mips_count);
+        ComPtr<ID3D11Resource> dest_res;
+        m_device->m_RTView->GetResource(&dest_res);
+        m_device->getDX11DeviceContext()->CopySubresourceRegion(dest_res.Get(), 0, 0, 0, 0, tex, src_subres, &src_box);
+    }
+
+    void Framebuffer::setSizeFromWindow()
+    {
+        RECT rct;
+        GetClientRect(m_device->m_hwnd, &rct);
+        setSize(glm::ivec2(rct.right - rct.left, rct.bottom - rct.top));
+    }
+
+    void Framebuffer::setSize(const glm::ivec2& xy)
+    {
+        if (m_size != xy)
+        {
+            for (int i = 0; i < D3D11_SIMULTANEOUS_RENDER_TARGET_COUNT; i++)
+                m_color_views[i] = nullptr;
+            m_depth_view = nullptr;
+            m_colors_to_bind.clear();
+        }
+        
+        m_size = xy;
+        
+        for (int i = 0; i < D3D11_SIMULTANEOUS_RENDER_TARGET_COUNT; i++)
+        {
+            if (!m_tex[i]) continue;
+            if (m_tex[i]->size() != xy) 
+            {
+                m_tex[i]->setState(m_tex[i]->format(), xy, m_tex[i]->mipsCount(), 1);
+                m_color_views[i] = nullptr;
+                m_colors_to_bind.clear();
+            }
+        }
+
+        if (m_depth) 
+        {
+            if (m_depth->size() != xy) 
+            {
+                m_depth->setState(m_depth->format(), xy, m_depth->mipsCount(), 1);
+                m_depth_view = nullptr;
+            }
+        }
+    }
+
+    glm::ivec2 Framebuffer::getSize() const
+    {
+        return m_size;
+    }
+
+    void Framebuffer::prepareSlots()
+    {
+        if (m_colors_to_bind.size() == 0)
+        {
+            m_rtv_count = 0;
+            for (int i = 0; i < D3D11_SIMULTANEOUS_RENDER_TARGET_COUNT; i++)
+            {
+                if (m_tex[i]) 
+                {
+                    m_rtv_count = i + 1;
+
+                    if (!m_color_views[i])
+                    {
+                        m_color_views[i] = m_tex[i]->buildRenderTarget(m_tex_params[i].mip, m_tex_params[i].slice_start, m_tex_params[i].slice_count);
+                    }
+                    
+                    m_colors_to_bind.push_back(m_color_views[i].Get());
+                }
+                else 
+                {
+                    m_colors_to_bind.push_back(nullptr);
+                }
+            }
+        }
+
+        if (m_uav_to_bind_count < 0)
+        {
+            m_uav_to_bind_count = 0;
+            for (int i = m_rtv_count; i < D3D11_SIMULTANEOUS_RENDER_TARGET_COUNT + D3D11_PS_CS_UAV_REGISTER_COUNT; i++) 
+            {
+                if (m_uav[i].kind != UAV_slot_kind::empty)
+                {
+                    m_uav_to_bind_count++;
+                }
+            }
+        }
+
+        m_uav_to_bind.clear();
+        m_uav_initial_counts.clear();
+
+        if (m_uav_to_bind_count > 0)
+        {
+            for (int i = m_rtv_count; i < D3D11_SIMULTANEOUS_RENDER_TARGET_COUNT + D3D11_PS_CS_UAV_REGISTER_COUNT; i++)
+            {
+                switch (m_uav[i].kind) 
+                {
+                case (UAV_slot_kind::tex):
+                    m_uav_to_bind.push_back(m_uav[i].tex->getUnorderedAccess(m_uav[i].tex_params.mip, m_uav[i].tex_params.slice_start, m_uav[i].tex_params.slice_count, m_uav[i].tex_params.as_array).Get());
+                    m_uav_initial_counts.push_back(m_uav[i].initial_counter);
+                    break;
+                case (UAV_slot_kind::buf):
+                    m_uav_to_bind.push_back(m_uav[i].buf->getUnorderedAccess().Get());
+                    m_uav_initial_counts.push_back(m_uav[i].initial_counter);
+                    break;
+                case (UAV_slot_kind::empty):
+                    m_uav_to_bind.push_back(nullptr);
+                    m_uav_initial_counts.push_back(-1);
+                    break;
+                }
+            }
+        }
+
+        if (m_depth && (!m_depth_view))
+        {
+            m_depth_view = m_depth->buildDepthStencil(m_depth_params.mip, m_depth_params.slice_start, m_depth_params.slice_count, m_depth_params.read_only);
+        }
+    }
+
+    Framebuffer::Tex2DParams::Tex2DParams()
+    {
+        mip = 0;
+        slice_start = 0;
+        slice_count = 0;
+        read_only = false;
+    }
+    
+    Framebuffer::Tex2DParams::Tex2DParams(int m, int s_start, int s_count, bool ronly, bool as_array)
+    {
+        mip = m;
+        slice_start = s_start;
+        slice_count = s_count;
+        read_only = ronly;
+        this->as_array = as_array;
+    }
+
+    bool Framebuffer::Tex2DParams::operator==(const Tex2DParams& b)
+    {
+        return (mip == b.mip) && (slice_start == b.slice_start) && (slice_count == b.slice_count) && (read_only == b.read_only);
+    }
 }

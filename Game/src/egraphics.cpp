@@ -21,21 +21,24 @@ namespace EProject
         return vertexIndexDataQuadArrayTex[index];
     }
 
-    Canvas::Canvas(const GDevicePtr& _dev, const Camera2D& camera) :
+    Render2D::Render2D(const GDevicePtr& _dev) :
+        DeviceHolder(_dev)
+    {
+
+    }
+
+    Render2D::Render2D(const GDevicePtr& _dev, const Camera2DPtr& camera) :
         DeviceHolder(_dev),
-        m_cameraPtr(std::make_shared<Camera2D>(camera))
+        m_cameraPtr(camera)
     {
         
     }
 
-    void Canvas::init(std::shared_ptr<AssetManager>& mng)
+    void Render2D::createBaseShader()
     {
-        m_mng = mng;
+        m_triangle = m_device->createShaderProgram();
 
         auto shadersDir = PathHandler::getShadersDir();
-        auto texDir = PathHandler::getTexturesDir();
-
-        m_triangle = m_device->createShaderProgram();
 
         ShaderInput vsInputTri = {};
 
@@ -54,7 +57,16 @@ namespace EProject
         m_triangle->compileFromFile(vsInputTri);
         m_triangle->compileFromFile(psInputTri);
         m_triangle->create();
-        
+    }
+
+    void Render2D::init(std::shared_ptr<AssetManager>& mng)
+    {
+        m_mng = mng;
+
+        createBaseShader();
+
+        const auto texDir = PathHandler::getTexturesDir();
+       
         PathKey grassKey(texDir / "grass.png");        
         Asset<Texture2D> grassTex = mng->getAsset<Texture2D>(grassKey.path);
 
@@ -129,7 +141,7 @@ namespace EProject
         isInited = true;
     }
 
-    void Canvas::setTextureLayer(int index)
+    void Render2D::setTextureLayer(int index)
     {
         static const char* albedoTexture = "albedoTex";
         
@@ -144,19 +156,20 @@ namespace EProject
         m_triangle->setResource(albedoTexture, texTree);
     }
 
-    void Canvas::markDirty()
+    void Render2D::markDirty()
     {
         isDirty = true;
     }
 
-    void Canvas::drawQuad(const glm::vec2& _pos)
+    void Render2D::drawQuad(const glm::vec2& _pos)
     {
         assert(isInited);
+
+        static constexpr glm::mat4 matrix = glm::mat4(1.0f);
 
         glm::vec3 scale = { 5.0f, 5.0f, 1.0f };
         glm::vec3 pos = glm::vec3(_pos.xy(), 0.0f);
         
-        static glm::mat4 matrix = glm::mat4(1.0f);
         glm::mat4 transform = glm::translate(matrix, pos) * glm::scale(matrix, scale);
 
         glm::vec4 qVert1 = transform * glm::vec4(PrimitiveFactory::getVertexPrimitive(0), PrimitiveFactory::getVertexPrimitive(1), 0.0f, 1.0f);
@@ -177,14 +190,14 @@ namespace EProject
         isDirty = true;
     }
 
-    void Canvas::drawQuad(const glm::vec3& _pos, const glm::vec4& _color)
+    void Render2D::drawQuad(const glm::vec3& _pos, const glm::vec4& _color)
     {
         assert(isInited);
 
+        static constexpr glm::mat4 matrix = glm::mat4(1.0f);
+
         glm::vec3 scale = { 5.0f, 5.0f, 1.0f };
         
-        static glm::mat4 matrix = glm::mat4(1.0f);
-
         glm::mat4 transform = glm::translate(matrix, _pos) * glm::scale(matrix, scale);
 
         glm::vec4 qVert1 = transform * glm::vec4(PrimitiveFactory::getVertexPrimitive(0), PrimitiveFactory::getVertexPrimitive(1), 0.0f, 1.0f);
@@ -200,24 +213,24 @@ namespace EProject
         isDirty = true;
     }
 
-    void Canvas::drawQuad(const glm::vec2& _pos, const glm::vec3& _color)
+    void Render2D::drawQuad(const glm::vec2& _pos, const glm::vec3& _color)
     {
         drawQuad(glm::vec3(_pos.xy(), 0.0f), glm::vec4(_color.xyz(), 1.0f));
     }
 
-    void Canvas::draw()
+    void Render2D::draw()
     {
         if (!shouldDraw())
         {
             return;
         }
 
-        updateCanvasBatch();
+        updateDrawingBatch();
 
         drawImpl();
     }
 
-    bool Canvas::shouldDraw() const
+    bool Render2D::shouldDraw() const
     {
         if (m_vertexQuadBatch.empty())
         {
@@ -227,7 +240,7 @@ namespace EProject
         return true;
     }
 
-    void Canvas::updateCanvasBatch()
+    void Render2D::updateDrawingBatch()
     {
         if (isDirty)
         {
@@ -239,14 +252,102 @@ namespace EProject
         }
     }
 
-    void Canvas::drawImpl()
+    void Render2D::drawImpl()
     {
         m_triangle->setInputBuffers(m_vb, m_ib, {}, 0);
 
         m_device->getStates()->setBlend(true, Blend::Src_Alpha, Blend::Inv_Src_Alpha);
-        m_device->getStates()->setCull(CullMode::None);
+        //m_device->getStates()->setCull(CullMode::None);
 
         m_triangle->drawIndexed(PrimTopology::Triangle, 0, m_ib->getIndexCount());
+    }
+
+    Render3D::Render3D(const GDevicePtr& _dev) : DeviceHolder(_dev)
+    {
+
+    }
+
+    Render3D::Render3D(const GDevicePtr& _dev, const Camera3DPtr& camera) : DeviceHolder(_dev), m_cam3DPtr(camera)
+    {
+
+    }
+
+    void Render3D::init(std::shared_ptr<AssetManager>& mng)
+    {
+        m_mng = mng;
+
+        createPBRShader(); 
+
+    }
+
+    void Render3D::drawMeshModel(const StaticMeshComponent& mshPtr, const TransformComponent& trs)
+    {
+        static constexpr const char* vpMatrix = "vp";
+        static constexpr const char* modelMatrix = "model";
+        static constexpr const char* invModel = "invModel";
+        static constexpr const char* cameraPos = "camPos";
+        static constexpr const char* albedoTexture = "albedoTex";
+        static constexpr const char* normalTexture = "normalTex";
+        static constexpr const char* samplerLin = "samplerDefault";
+
+       //m_triangle->setResource(albedoTexture, texGrass
+
+        const auto& mdl = mshPtr.m_model;        
+        
+        glm::mat4 mdlMatrix = glm::mat4(1.0f);
+
+        // RightHanded Matrix Order Mul. transpose... Keep in my mind VULKAN!!!
+
+        mdlMatrix = glm::translate(mdlMatrix, trs.mPos) * glm::toMat4(trs.mRot) * glm::scale(mdlMatrix, trs.mScale);
+        mdlMatrix = glm::transpose(mdlMatrix);
+
+        const glm::mat4 inverseMdl = glm::inverse(mdlMatrix);
+
+        m_pbr->setResource(samplerLin, cSampler_Linear);
+
+        m_pbr->setResource(albedoTexture, mdl->getGPUAlbedoTexture());       
+        m_pbr->setResource(normalTexture, mdl->getGPUNormalTexture());
+
+        m_pbr->setValue(modelMatrix, mdlMatrix);
+        m_pbr->setValue(invModel, inverseMdl);
+
+        m_pbr->setValue(cameraPos, m_cam3DPtr->getPosition());
+        m_pbr->setValue(vpMatrix,  m_cam3DPtr->getViewProj());
+
+        m_pbr->setInputBuffers(mdl->getVertexBufferPtr(), mdl->getIndexBufferPtr(), {}, 0);
+
+        m_device->getStates()->setDepthEnable(true);
+        // m_device->getStates()->setBlend(true, Blend::Src_Alpha, Blend::Inv_Src_Alpha);
+        // m_device->getStates()->setCull(CullMode::None);
+
+        m_pbr->drawIndexed(PrimTopology::Triangle, 0, mdl->getIndexBufferPtr()->getIndexCount());
+
+        m_device->getStates()->setDepthEnable(false);
+    }
+
+    void Render3D::createPBRShader()
+    {
+        m_pbr = m_device->createShaderProgram();
+
+        auto shadersDir = PathHandler::getShadersDir();
+
+        ShaderInput vsInputTri = {};
+
+        vsInputTri.filePath = shadersDir / "pbr.hlsl";
+        vsInputTri.entyPoint = "vs_main";
+        vsInputTri.target = "vs_5_0";
+        vsInputTri.type = ShaderType::Vertex;
+
+        ShaderInput psInputTri = {};
+
+        psInputTri.filePath = shadersDir / "pbr.hlsl";
+        psInputTri.entyPoint = "ps_main";
+        psInputTri.target = "ps_5_0";
+        psInputTri.type = ShaderType::Pixel;
+
+        m_pbr->compileFromFile(vsInputTri);
+        m_pbr->compileFromFile(psInputTri);
+        m_pbr->create();
     }
 
 }

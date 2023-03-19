@@ -1,11 +1,5 @@
 #include "ewnd.h"
 
-#include "ecs/eentity.h"
-
-#include "world/ecomponents.h"
-
-#include <set>
-
 namespace EProject
 {
     LRESULT CALLBACK DefWndProc(
@@ -112,7 +106,7 @@ namespace EProject
     }
 
     void Wnd::keyDown(uint32_t vKey, bool duplicate)
-    {
+    {      
     }
 
     void Wnd::keyUp(uint32_t vKey, bool duplicate)
@@ -259,65 +253,29 @@ namespace EProject
         Wnd(L"RenderWin", wnd_name, true),
         m_manager(nullptr),
         m_camera2d(nullptr),
-        m_canvas(nullptr, m_camera2d)
-    {
-        
-        ECS::EEntity ent1 = ECS::EEntity::Create();
-        ent1.AddComponent<TransformComponent>();
-
+        m_canvas(nullptr, m_camera2d),
+        m_camera3d(nullptr),
+        m_render3d(nullptr, m_camera3d)
+    {                       
         m_device = std::make_shared<GDevice>(getHandle(), false);
         
         m_manager = std::make_shared<AssetManager>(m_device);
 
-        m_camera2d = Camera2D(m_device);
-        m_camera2d.updateScreen(m_zoom);
+        m_camera2d = std::make_shared<Camera2D>(m_device);
+        m_camera2d->updateScreen(m_zoom);
 
-        m_canvas = Canvas(m_device, m_camera2d);
-
+        m_canvas = Render2D(m_device, m_camera2d);
         m_canvas.init(m_manager);
        
-        int spriteCounter = 0;
+        m_camera3d = std::make_shared<Camera3D>(m_device);
 
-        std::vector<glm::vec3> cache = {};
+        m_camera3d->setPosition({ 0.0f, 0.0f, -10.0f });
+        m_camera3d->lookAt(m_camera3d->getPosition(), MVEK3FORWARD, MVEK3UP);
 
-        for (int y = -30; y < 31; ++y)
-        {
-            for (int x = -30; x < 31; ++x)
-            {
-                auto isoPos = screenToIso(x, y);
-                glm::vec3 pos(isoPos.x * 4.5f, isoPos.y * 4.5f, 0.0f);
-                
-                if (auto it = std::find(cache.begin(), cache.end(), pos); it == cache.end())
-                {
-                    m_canvas.drawQuad(pos);
-                    cache.emplace_back(pos);
-                    ++spriteCounter;
-                }
-            }
-        }    
+        m_render3d = Render3D(m_device, m_camera3d);
+        m_render3d.init(m_manager);
 
-        //cache.clear();
-        //m_canvas.setTextureLayer(1);
-
-        //for (int y = -30; y < 31; ++y)
-        //{
-        //    for (int x = -30; x < 31; ++x)
-        //    {
-        //        auto isoPos = screenToIso(x, y);
-        //        glm::vec3 pos(isoPos.x * 4.5f, isoPos.y * 4.5f, 0.0f);
-
-        //        if (auto it = std::find(cache.begin(), cache.end(), pos); it == cache.end())
-        //        {
-        //            //m_canvas.drawQuad(pos, Color::white);
-        //            m_canvas.drawQuad(pos);
-        //            cache.emplace_back(pos);
-        //            ++spriteCounter;
-        //        }
-        //    }
-        //}
-
-
-        std::cout << "Sprite rendered: " << spriteCounter << "\n";
+        m_world.init(m_manager, m_device);            
     }
 
     GameWindow::~GameWindow()
@@ -347,7 +305,9 @@ namespace EProject
 
         glm::fclamp(m_zoom, 0.1f, 90.0f);
 
-        m_camera2d.updateScreen(m_zoom);
+        std::cout << m_zoom << "\n";
+
+        m_camera2d->updateScreen(m_zoom);
         m_canvas.markDirty();
     }
 
@@ -357,14 +317,42 @@ namespace EProject
 
     void GameWindow::keyDown(uint32_t vKey, bool duplicate)
     {
+        constexpr float cameraSpeed = 0.2f;
+        glm::vec3 newPos = m_camera3d->getPosition();
+
+        glm::vec3 direction = {};
+        direction.x = cos(glm::radians(45.0f)) * cos(glm::radians(45.0f));
+        direction.y = sin(glm::radians(45.0f));
+        direction.z = sin(glm::radians(45.0f)) * cos(glm::radians(45.0f));
+        glm::vec3 cameraFront = glm::normalize(direction);
+
+        if (vKey == 'W')
+        {
+            newPos += MVEK3FORWARD * cameraSpeed;
+        }
+        if (vKey == 'S')
+        {
+            newPos -= MVEK3FORWARD * cameraSpeed;
+        }
+        if (vKey == 'A')
+        {
+            newPos -= glm::normalize(glm::cross(MVEK3FORWARD, MVEK3UP)) * cameraSpeed;
+        }
+        if (vKey == 'D')
+        {
+            newPos += glm::normalize(glm::cross(MVEK3FORWARD, MVEK3UP)) * cameraSpeed;
+        }
+
+        m_camera3d->setPosition(newPos);
+        m_camera3d->lookAt(newPos, newPos + MVEK3FORWARD, MVEK3UP);
     }
 
     void GameWindow::keyUp(uint32_t vKey, bool duplicate)
     {
     }
 
-    void GameWindow::paint(bool* processed)
-    {
+    void GameWindow::execute(bool* processed)
+    { 
         if (!processed)
         {
             return;
@@ -375,14 +363,19 @@ namespace EProject
         if (rct.right - rct.left <= 0) return;
         if (rct.bottom - rct.top <= 0) return;
 
+        fixedUpdate(0.0f);
+        update(0.0f);
+
         m_device->beginFrame();
         render();
         m_device->endFrame();
+
         *processed = true;
     }
 
     void GameWindow::windowResized(const glm::ivec2& new_size)
     {
+       
     }
 
     void GameWindow::fixedUpdate(float _ts)
@@ -391,20 +384,25 @@ namespace EProject
 
     void GameWindow::update(float _ts)
     {
+        FrameInfo frame;
+        frame.dt = _ts;
+        frame.render2DPtr = &m_canvas;
+        frame.render3DPtr = &m_render3d;
 
+        m_world.update(frame);
     }
 
     void GameWindow::render()
     {           
+        FrameInfo frame;
+        frame.render2DPtr = &m_canvas;
+        frame.render3DPtr = &m_render3d;
+
         m_device->getStates()->push();
-
-        m_canvas.draw();        
-        
+        m_canvas.draw();
         m_device->getStates()->pop();
-    }
 
-    glm::ivec2 GameWindow::screenToIso(int x, int y)
-    {
-        return { (x - y) / 2, (x + y) / 4 };
+        m_world.draw(frame);
+
     }
 }

@@ -152,7 +152,8 @@ namespace EProject
             (fmt == TextureFmt::RGBA32f);
     }
 
-    int calcMipLevelsCount(int w, int h) {
+    int calcMipLevelsCount(int w, int h)
+    {
         assert(w >= 0);
         assert(h >= 0);
 
@@ -164,6 +165,7 @@ namespace EProject
         }
         return max_mip;
     }
+    
     int calcMipLevelsCount(int w, int h, int z) 
     {
         assert(w >= 0);

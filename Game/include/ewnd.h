@@ -2,12 +2,11 @@
 
 #include "eutils.h"
 #include "egraphics.h"
+#include "world/eworld.h"
 
 #define NOMINMAX
 #include <windows.h>
-#include <string>
-#include <functional>
-#include <iostream>
+#include <eheader.h>
 
 namespace EProject
 {
@@ -58,7 +57,7 @@ namespace EProject
         virtual void mouseDblClick(int btn, const glm::ivec2& crd, const ShiftState& ss);
         virtual void keyDown(uint32_t vKey, bool duplicate);
         virtual void keyUp(uint32_t vKey, bool duplicate);
-        virtual void paint(bool* processed);
+        virtual void execute(bool* processed);
         virtual void windowResized(const glm::ivec2& new_size);
     
     protected:
@@ -68,16 +67,16 @@ namespace EProject
 
     private:
 
-        glm::ivec2 screenToIso(int x, int y);
-
-    private:
-
-        std::shared_ptr<GDevice> m_device;
-       
+        std::shared_ptr<GDevice> m_device;       
         std::shared_ptr<AssetManager> m_manager;
 
-        Camera2D m_camera2d;
-        Canvas m_canvas;
+        Camera2DPtr m_camera2d;
+        Render2D m_canvas;
+
+        Camera3DPtr m_camera3d;
+        Render3D m_render3d;
+        
+        World m_world;
 
         float m_zoom = 60.0f;
     };

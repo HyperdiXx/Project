@@ -65,9 +65,8 @@ namespace EProject
 
     void Camera2D::updateScreen(float fov)
     {        
-        auto fbSize = m_ubo->getDevice()->currentFrameBufferSize();
-
-        float aspectRatio = (float)fbSize.x / (float)fbSize.y;
+        const auto fbSize = m_ubo->getDevice()->currentFrameBufferSize();
+        const float aspectRatio = static_cast<float>(fbSize.x) / static_cast<float>(fbSize.y);
 
         float camFOV = fov;
         float bottom = -camFOV;
@@ -76,10 +75,47 @@ namespace EProject
         float right = top * aspectRatio;
 
         m_buf.view = glm::mat4(1.0);
-        m_buf.proj = glm::orthoLH(left, right, bottom, top, m_buf.z_near_far.x, m_buf.z_near_far.y);
+        m_buf.proj = glm::orthoRH(left, right, bottom, top, m_buf.z_near_far.x, m_buf.z_near_far.y);
 
         m_buf.updateViewProj();
         m_ubo->setSubData(0, 1, &m_buf);
+    }
+
+    Camera3D::Camera3D(const GDevicePtr& device) : CameraBase(device)
+    {
+    }
+
+    void Camera3D::lookAt(const glm::vec3& pos, const glm::vec3& dir, const glm::vec3& up)
+    {
+        const auto fbSize = m_ubo->getDevice()->currentFrameBufferSize();
+        const float aspectRatio = static_cast<float>(fbSize.x) / static_cast<float>(fbSize.y);
+
+        // Directx3d
+        m_buf.view = glm::lookAtRH(pos, dir, up);
+        m_buf.proj = glm::perspectiveFovRH_ZO(glm::radians(45.0f), static_cast<float>(fbSize.x), static_cast<float>(fbSize.y), m_buf.z_near_far.x, m_buf.z_near_far.y);
+
+        m_buf.updateViewProj();
+        m_ubo->setSubData(0, 1, &m_buf);
+    }
+
+    void Camera3D::setPosition(const glm::vec3& pos)
+    {
+        m_pos = pos;
+    }
+
+    const glm::vec3& Camera3D::getPosition() const
+    {
+        return m_pos;
+    }
+
+    void Camera3D::setRotation(const glm::vec3& rot)
+    {
+        m_rot = rot;
+    }
+
+    const glm::vec3& Camera3D::getRotation() const
+    {
+        return m_rot;
     }
 
     std::filesystem::path PathHandler::getDataDir()
@@ -96,6 +132,11 @@ namespace EProject
     std::filesystem::path PathHandler::getTexturesDir()
     {
         return getDataDir() / "Textures";
+    }
+
+    std::filesystem::path PathHandler::getModelsDir()
+    {
+        return getDataDir() / "Models";
     }
 
     std::size_t PathKey::operator()(const PathKey& k) const
@@ -127,6 +168,11 @@ namespace EProject
     Texture2D::Texture2D(const std::filesystem::path& _path) : IAsset(_path)
     {
         
+    }
+
+    void Texture2D::init()
+    {
+
     }
 
     bool Texture2D::load(const GDevicePtr& _ptr)

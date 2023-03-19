@@ -4,6 +4,8 @@
 #include "egapi.h"
 #include "eutils.h"
 
+#include <world/ecomponents.h>
+
 namespace EProject
 {
     struct VertexPosColor
@@ -63,11 +65,12 @@ namespace EProject
     };
 
 
-    class Canvas : public DeviceHolder
+    class Render2D : public DeviceHolder
     {
     public:
-        Canvas() = default;
-        Canvas(const GDevicePtr& _dev, const Camera2D& camera);
+        Render2D() = default;
+        explicit Render2D(const GDevicePtr& _dev);
+        explicit Render2D(const GDevicePtr& _dev, const Camera2DPtr& camera);
 
         void init(std::shared_ptr<AssetManager>&);
 
@@ -83,8 +86,10 @@ namespace EProject
     private:
 
         bool shouldDraw() const;
-        void updateCanvasBatch();
+        void updateDrawingBatch();
         void drawImpl();
+
+        void createBaseShader();
 
     private:
 
@@ -110,5 +115,30 @@ namespace EProject
 
         bool isInited = false;
         bool isDirty = false;
+    };
+   
+    class Render3D : public DeviceHolder
+    {
+    public:
+        Render3D() = default;
+        explicit Render3D(const GDevicePtr& _dev);
+        explicit Render3D(const GDevicePtr& _dev, const Camera3DPtr& camera);
+
+        void init(std::shared_ptr<AssetManager>&);
+
+        void drawMeshModel(const StaticMeshComponent& mshPtr, const TransformComponent& trs);
+
+    private:
+
+        void createPBRShader();
+        void drawMesh();
+
+    private:
+
+        ShaderProgramPtr m_pbr;
+        StructuredBufferPtr m_sb;
+
+        std::shared_ptr<AssetManager> m_mng;
+        Camera3DPtr m_cam3DPtr;
     };
 }

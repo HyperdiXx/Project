@@ -1,5 +1,3 @@
-#include <iostream>
-
 #include "ewnd.h"
 
 using namespace EProject;
@@ -11,8 +9,8 @@ int main()
 
 	MessageLoop([&mainWindow]()
 	{
-			bool isPainted = false;
-			mainWindow.paint(&isPainted);
+		bool isPainted = false;
+		mainWindow.execute(&isPainted);
 	});
 
 	return 0;
