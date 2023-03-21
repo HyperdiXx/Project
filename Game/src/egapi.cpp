@@ -663,7 +663,7 @@ namespace EProject
         {
             const char* errorMsg = (const char*)errorMessages->GetBufferPointer();
             
-            //MessageBox(nullptr, errorMsg, L"Shader Compilation Error", MB_RETRYCANCEL);
+            //MessageBox(nullptr, (LPCWSTR)errorMsg, L"Shader Compilation Error", MB_RETRYCANCEL);
         }
 
         m_shaderData[int(input.type)] = compiledShader;

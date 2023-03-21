@@ -64,6 +64,14 @@ namespace EProject
         static float getVertexUVPrimitive(size_t index);
     };
 
+    // Implement light representation on render side
+    class Light final
+    {
+    public:
+
+    private:
+
+    };
 
     class Render2D : public DeviceHolder
     {

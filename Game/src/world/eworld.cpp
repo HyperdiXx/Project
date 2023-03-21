@@ -74,14 +74,18 @@ void World::init(std::shared_ptr<AssetManager>& mng, const GDevicePtr& dev)
     const auto ent2 = createObject("Ent2");
 
     addComponent<TransformComponent>(ent2, glm::vec3(5.0f, 0.0f, 0.0f), glm::quat(glm::vec3(0.0f, glm::radians(180.0f), 0.0f)));
-    auto& ent2Mesh = addComponent<StaticMeshComponent>(ent2, helmetRenderable);
+    addComponent<StaticMeshComponent>(ent2, helmetRenderable);
 
     const auto ent3 = createObject("Ent3");
     addComponent<TransformComponent>(ent3, glm::vec3(-5.0f, 0.0f, 0.0f));
-    auto& ent3Mesh = addComponent<StaticMeshComponent>(ent3, scifihelmetRenderable);
+    addComponent<StaticMeshComponent>(ent3, scifihelmetRenderable);
 
     const auto lightDirect = createObject("sunLight");
-    addComponent<DirectLightComponent>(lightDirect, glm::vec3(0.0f, 10.0f, 0.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+    addComponent<DirectLightComponent>(lightDirect, glm::vec3(0.0f, 10.0f, 0.0f), glm::vec3(252.0f / 255.0f, 1.0f, 181.0f / 255.0f));
+
+    const auto testMesh = createObject("mesh");
+    addComponent<TransformComponent>(testMesh, glm::vec3(0.0f, 5.0f, 0.0f));
+    addComponent<StaticMeshComponent>(testMesh, scifihelmetRenderable);
 
     postInit();
 }
