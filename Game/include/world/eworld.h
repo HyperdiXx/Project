@@ -25,6 +25,7 @@ public:
     void init(std::shared_ptr<EProject::AssetManager>& mng, const GDevicePtr& dev);
 
     entt::entity createObject(const std::string& tag = "");
+    void destroyObject(const std::string& tag = "");
     
     template<typename T, typename... Args>
     auto& addComponent(const entt::entity ent, Args&&... args)

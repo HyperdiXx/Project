@@ -8,13 +8,27 @@
 void RenderMeshSystem::update(EProject::Render3D* render3D, entt::registry& reg)
 {
     auto gr = reg.group<TransformComponent>(entt::get<StaticMeshComponent>);
+    auto directLightEnts = reg.view<DirectLightComponent>();
 
-    for (auto ent : gr)
+    // Refactor
+    auto gdevice = render3D->getDevice();
+
+    gdevice->getStates()->setDepthEnable(true);
+
+    for (auto dirLight : directLightEnts)
     {
-        const auto& [tr, mc] = gr.get<TransformComponent, StaticMeshComponent>(ent);
-        
-        render3D->drawMeshModel(mc, tr);
+        const auto& directLight = directLightEnts.get<DirectLightComponent>(dirLight);
+
+        render3D->setGeometryPass(directLight);
+
+        for (auto ent : gr)
+        {
+            const auto& [tr, mc] = gr.get<TransformComponent, StaticMeshComponent>(ent);
+            render3D->drawMeshModel(mc, tr);
+        }    
     }
+    
+    gdevice->getStates()->setDepthEnable(false); 
 }
 
 void CanvasSystem::update(World* wrld, EProject::Render2D* render2D, entt::registry& reg)

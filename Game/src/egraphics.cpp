@@ -260,6 +260,8 @@ namespace EProject
         //m_device->getStates()->setCull(CullMode::None);
 
         m_triangle->drawIndexed(PrimTopology::Triangle, 0, m_ib->getIndexCount());
+
+        m_device->getStates()->setBlend(false, Blend::Src_Alpha, Blend::Inv_Src_Alpha);
     }
 
     Render3D::Render3D(const GDevicePtr& _dev) : DeviceHolder(_dev)
@@ -276,53 +278,87 @@ namespace EProject
     {
         m_mng = mng;
 
+        createShaderSemantics();
         createPBRShader(); 
+    }
 
+    void Render3D::setGeometryPass(const DirectLightComponent& dirLight)
+    {
+        m_dirLight = dirLight;
     }
 
     void Render3D::drawMeshModel(const StaticMeshComponent& mshPtr, const TransformComponent& trs)
     {
-        static constexpr const char* vpMatrix = "vp";
-        static constexpr const char* modelMatrix = "model";
-        static constexpr const char* invModel = "invModel";
-        static constexpr const char* cameraPos = "camPos";
-        static constexpr const char* albedoTexture = "albedoTex";
-        static constexpr const char* normalTexture = "normalTex";
-        static constexpr const char* samplerLin = "samplerDefault";
-
-       //m_triangle->setResource(albedoTexture, texGrass
-
         const auto& mdl = mshPtr.m_model;        
         
         glm::mat4 mdlMatrix = glm::mat4(1.0f);
 
         // RightHanded Matrix Order Mul. transpose... Keep in my mind VULKAN!!!
-
         mdlMatrix = glm::translate(mdlMatrix, trs.mPos) * glm::toMat4(trs.mRot) * glm::scale(mdlMatrix, trs.mScale);
         mdlMatrix = glm::transpose(mdlMatrix);
 
         const glm::mat4 inverseMdl = glm::inverse(mdlMatrix);
 
-        m_pbr->setResource(samplerLin, cSampler_Linear);
+        m_pbr->setResource(m_shaderSemanticsc.at("samplerDefault"), cSampler_Linear);
 
-        m_pbr->setResource(albedoTexture, mdl->getGPUAlbedoTexture());       
-        m_pbr->setResource(normalTexture, mdl->getGPUNormalTexture());
+        m_pbr->setResource(m_shaderSemanticsc.at("albedoTexture"), mdl->getGPUAlbedoTexture());
+        m_pbr->setResource(m_shaderSemanticsc.at("normalTexture"), mdl->getGPUNormalTexture());
 
-        m_pbr->setValue(modelMatrix, mdlMatrix);
-        m_pbr->setValue(invModel, inverseMdl);
+        m_pbr->setValue(m_shaderSemanticsc.at("modelMatrix"), mdlMatrix);
+        m_pbr->setValue(m_shaderSemanticsc.at("invModelMatrix"), inverseMdl);
 
-        m_pbr->setValue(cameraPos, m_cam3DPtr->getPosition());
-        m_pbr->setValue(vpMatrix,  m_cam3DPtr->getViewProj());
+        m_pbr->setValue(m_shaderSemanticsc.at("cameraPos"), m_cam3DPtr->getPosition());
+        m_pbr->setValue(m_shaderSemanticsc.at("viewProjectionMatrix"),  m_cam3DPtr->getViewProj());
+
+        m_pbr->setValue(m_shaderSemanticsc.at("lightPositions"), m_dirLight.mPos);
+        m_pbr->setValue(m_shaderSemanticsc.at("lightColours"), m_dirLight.mColor);
 
         m_pbr->setInputBuffers(mdl->getVertexBufferPtr(), mdl->getIndexBufferPtr(), {}, 0);
 
-        m_device->getStates()->setDepthEnable(true);
-        // m_device->getStates()->setBlend(true, Blend::Src_Alpha, Blend::Inv_Src_Alpha);
-        // m_device->getStates()->setCull(CullMode::None);
-
         m_pbr->drawIndexed(PrimTopology::Triangle, 0, mdl->getIndexBufferPtr()->getIndexCount());
+    }
 
-        m_device->getStates()->setDepthEnable(false);
+    void Render3D::drawMeshModel(const SkinnedMeshComponent& mshPtr, const TransformComponent& trs)
+    {
+        const auto& mdl = mshPtr.m_model;
+
+        glm::mat4 mdlMatrix = glm::mat4(1.0f);
+
+        // RightHanded Matrix Order Mul. transpose... Keep in my mind VULKAN!!!
+        mdlMatrix = glm::translate(mdlMatrix, trs.mPos) * glm::toMat4(trs.mRot) * glm::scale(mdlMatrix, trs.mScale);
+        mdlMatrix = glm::transpose(mdlMatrix);
+
+        const glm::mat4 inverseMdl = glm::inverse(mdlMatrix);
+
+       /* m_pbr->setResource(m_shaderSemanticsc.at("samplerDefault"), cSampler_Linear);
+
+        m_pbr->setResource(m_shaderSemanticsc.at("albedoTexture"), mdl->getGPUAlbedoTexture());
+        m_pbr->setResource(m_shaderSemanticsc.at("normalTexture"), mdl->getGPUNormalTexture());
+
+        m_pbr->setValue(m_shaderSemanticsc.at("modelMatrix"), mdlMatrix);
+        m_pbr->setValue(m_shaderSemanticsc.at("invModelMatrix"), inverseMdl);
+
+        m_pbr->setValue(m_shaderSemanticsc.at("cameraPos"), m_cam3DPtr->getPosition());
+        m_pbr->setValue(m_shaderSemanticsc.at("viewProjectionMatrix"), m_cam3DPtr->getViewProj());
+
+        m_pbr->setInputBuffers(mdl->getVertexBufferPtr(), mdl->getIndexBufferPtr(), {}, 0);*/
+
+        //m_pbr->drawIndexed(PrimTopology::Triangle, 0, mdl->getIndexBufferPtr()->getIndexCount());
+    }
+
+    void Render3D::createShaderSemantics()
+    {
+        m_shaderSemanticsc["viewProjectionMatrix"] = "vp";
+        m_shaderSemanticsc["modelMatrix"] = "model";
+        m_shaderSemanticsc["invModelMatrix"] = "invModel";
+        m_shaderSemanticsc["cameraPos"] = "camPos";
+
+        m_shaderSemanticsc["albedoTexture"] = "albedoTex";
+        m_shaderSemanticsc["normalTexture"] = "normalTex";
+        m_shaderSemanticsc["samplerDefault"] = "samplerDefault";
+
+        m_shaderSemanticsc["lightPositions"] = "lightPositions";
+        m_shaderSemanticsc["lightColours"] = "lightColours";
     }
 
     void Render3D::createPBRShader()

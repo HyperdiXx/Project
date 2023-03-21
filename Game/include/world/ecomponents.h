@@ -28,6 +28,16 @@ public:
     glm::vec3 mScale = glm::vec3(1.0f, 1.0f, 1.0f);
 };
 
+class DirectLightComponent final
+{
+public:
+    DirectLightComponent() = default;
+    explicit DirectLightComponent(const glm::vec3& pos, const glm::vec3& color = glm::vec3()) : mPos(pos), mColor(color) {}
+
+    glm::vec3 mPos = glm::vec3(0.0f, 0.0f, 0.0f);
+    glm::vec3 mColor = glm::vec3();
+};
+
 class StaticMeshComponent final
 {
 public:

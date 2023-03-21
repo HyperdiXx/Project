@@ -1,7 +1,6 @@
 #include <world/eworld.h>
 #include <world/ecomponents.h>
 
-
 #include <graphics/emesh.h>
 
 #include <eheader.h>
@@ -81,6 +80,9 @@ void World::init(std::shared_ptr<AssetManager>& mng, const GDevicePtr& dev)
     addComponent<TransformComponent>(ent3, glm::vec3(-5.0f, 0.0f, 0.0f));
     auto& ent3Mesh = addComponent<StaticMeshComponent>(ent3, scifihelmetRenderable);
 
+    const auto lightDirect = createObject("sunLight");
+    addComponent<DirectLightComponent>(lightDirect, glm::vec3(0.0f, 10.0f, 0.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+
     postInit();
 }
 
@@ -101,13 +103,26 @@ entt::entity World::createObject(const std::string& tag)
     return ent;
 }
 
+void World::destroyObject(const std::string& tag)
+{
+    auto view = m_registry.view<TagComponent>();
+
+    for (auto ent : view)
+    {
+        const auto& entObject = view.get<TagComponent>(ent);
+        if (entObject.mTag == tag)
+        {
+            m_registry.destroy(ent);
+        }
+    }
+}
+
 void World::update(const FrameInfo& fi)
 {    
     //m_dispatcher.enqueue<RenderMeshSubmitEvent>({5, 5});
      
     //m_renderSystem.render(m_registry);
-    
-    
+        
     //m_dispatcher.update();
 }
 

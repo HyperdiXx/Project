@@ -88,8 +88,9 @@ namespace EProject
         bool shouldDraw() const;
         void updateDrawingBatch();
         void drawImpl();
-
+        
         void createBaseShader();
+        void createShaderSemantics();
 
     private:
 
@@ -126,11 +127,15 @@ namespace EProject
 
         void init(std::shared_ptr<AssetManager>&);
 
+        void setGeometryPass(const DirectLightComponent& dirLight);
+
         void drawMeshModel(const StaticMeshComponent& mshPtr, const TransformComponent& trs);
+        void drawMeshModel(const SkinnedMeshComponent& mshPtr, const TransformComponent& trs);
 
     private:
 
         void createPBRShader();
+        void createShaderSemantics();
         void drawMesh();
 
     private:
@@ -140,5 +145,9 @@ namespace EProject
 
         std::shared_ptr<AssetManager> m_mng;
         Camera3DPtr m_cam3DPtr;
+
+        DirectLightComponent m_dirLight;
+
+        std::unordered_map<const char*, const char*> m_shaderSemanticsc;
     };
 }

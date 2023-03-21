@@ -99,6 +99,7 @@ namespace EProject
     void States::pop()
     {
         const auto& last = m_states.back();
+
         m_r_desc = last.m_r_desc;
         m_d_desc = last.m_d_desc;
         m_b_desc = last.m_b_desc;
@@ -106,6 +107,7 @@ namespace EProject
         m_d_state = last.m_d_state;
         m_b_state = last.m_b_state;
         m_stencil_ref = last.m_stencil_ref;
+        
         if (m_r_state)
             m_deviceContext->RSSetState(m_r_state.Get());
         if (m_d_state)

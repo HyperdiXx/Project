@@ -90,7 +90,7 @@ namespace EProject
         const auto fbSize = m_ubo->getDevice()->currentFrameBufferSize();
         const float aspectRatio = static_cast<float>(fbSize.x) / static_cast<float>(fbSize.y);
 
-        // Directx3d
+        // DirectX3d
         m_buf.view = glm::lookAtRH(pos, dir, up);
         m_buf.proj = glm::perspectiveFovRH_ZO(glm::radians(45.0f), static_cast<float>(fbSize.x), static_cast<float>(fbSize.y), m_buf.z_near_far.x, m_buf.z_near_far.y);
 
