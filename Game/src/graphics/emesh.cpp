@@ -319,6 +319,7 @@ namespace EProject
             const auto& mat = data.getMaterial();
             m_albedoTex = setupTexture(dev, mng, PathKey(modelsDir / m_modelName / mat.albedo_map));
             m_normalTex = setupTexture(dev, mng, PathKey(modelsDir / m_modelName / mat.normal_map));
+            m_metallRoghnessTex = setupTexture(dev, mng, PathKey(modelsDir / m_modelName / mat.roughness_map));
         }
 
         // create gpu buffers

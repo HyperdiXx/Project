@@ -301,8 +301,9 @@ namespace EProject
 
         m_pbr->setResource(m_shaderSemanticsc.at("samplerDefault"), cSampler_Linear);
 
-        m_pbr->setResource(m_shaderSemanticsc.at("albedoTexture"), mdl->getGPUAlbedoTexture());
-        m_pbr->setResource(m_shaderSemanticsc.at("normalTexture"), mdl->getGPUNormalTexture());
+        m_pbr->setResource(m_shaderSemanticsc.at("albedoTexture"), mdl->getAlbedoTexturePtr());
+        m_pbr->setResource(m_shaderSemanticsc.at("normalTexture"), mdl->getNormalTexturePtr());
+        m_pbr->setResource(m_shaderSemanticsc.at("metallRoghnessTexture"), mdl->getMetallRoughnessTexturePtr());
 
         m_pbr->setValue(m_shaderSemanticsc.at("modelMatrix"), mdlMatrix);
         m_pbr->setValue(m_shaderSemanticsc.at("invModelMatrix"), inverseMdl);
@@ -355,6 +356,7 @@ namespace EProject
 
         m_shaderSemanticsc["albedoTexture"] = "albedoTex";
         m_shaderSemanticsc["normalTexture"] = "normalTex";
+        m_shaderSemanticsc["metallRoghnessTexture"] = "metallRoghnessTex";
         m_shaderSemanticsc["samplerDefault"] = "samplerDefault";
 
         m_shaderSemanticsc["lightPositions"] = "lightPositions";

@@ -160,8 +160,9 @@ namespace EProject
         const VertexBufferPtr& getVertexBufferPtr() const { return m_vb; }
         const IndexBufferPtr& getIndexBufferPtr() const { return m_ib; }
 
-        const GPUTexture2DPtr& getGPUAlbedoTexture() const { return m_albedoTex; }
-        const GPUTexture2DPtr& getGPUNormalTexture() const { return m_normalTex; }
+        const GPUTexture2DPtr& getAlbedoTexturePtr() const { return m_albedoTex; }
+        const GPUTexture2DPtr& getNormalTexturePtr() const { return m_normalTex; }
+        const GPUTexture2DPtr& getMetallRoughnessTexturePtr() const { return m_metallRoghnessTex; }
 
     private:
 
@@ -173,6 +174,7 @@ namespace EProject
 
         GPUTexture2DPtr m_albedoTex;
         GPUTexture2DPtr m_normalTex;
+        GPUTexture2DPtr m_metallRoghnessTex;
 
         MeshInstancePtr m_meshPtr;
         std::string m_modelName;

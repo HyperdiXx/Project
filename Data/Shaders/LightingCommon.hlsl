@@ -1,47 +1,65 @@
 
 static const float PI = 3.14159265359;
+static const float Epsilon = 0.00001;
 
-float3 fresnelSchlick(float cosTheta, float3 F0)
+// Constant normal incidence Fresnel factor for all dielectrics.
+static const float3 Fdielectric = 0.04;
+
+// NDF function
+// Disney's alpha = roughness ^ 2
+float ndfGGX(float cosLh, float roughness)
+{
+    float alpha = roughness * roughness;
+    float alphaSq = alpha * alpha;
+
+    float denom = (cosLh * cosLh) * (alphaSq - 1.0) + 1.0;
+    return alphaSq / (PI * denom * denom);
+}
+
+// Single term for separable Schlick-GGX below.
+float gaSchlickG1(float cosTheta, float k)
+{
+    return cosTheta / (cosTheta * (1.0 - k) + k);
+}
+
+// Schlick-GGX approximation of geometric attenuation function using Smith's method.
+float gaSchlickGGX(float cosLi, float cosLo, float roughness)
+{
+    float r = roughness + 1.0;
+    float k = (r * r) / 8.0; // Epic suggests using this roughness remapping for analytic lights.
+    return gaSchlickG1(cosLi, k) * gaSchlickG1(cosLo, k);
+}
+
+// Shlick's approximation of the Fresnel factor.
+float3 fresnelSchlick(float3 F0, float cosTheta)
 {
     return F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
 }
 
-float3 fresnelSchlickRoughness(float cosTheta, float3 F0, float roughness)
+float3 brdf(in float3 L, in float3 V, in float3 N, in float3 Albedo, in float3 Radiance, in float R, in float M, in float3 FRef)
 {
-    return F0 + (max(float3(1.0 - roughness, 1.0 - roughness, 1.0 - roughness), F0) - F0) * pow(1.0 - cosTheta, 5.0);
+    const float3 H = normalize(L + V);
+    const float NdotL = max(0.0, dot(N, L));
+    const float NdotH = max(0.0, dot(N, H));
+    const float NdotV = max(0.0, dot(N, V));
+
+    // Calculate Fresnel term for direct lighting. 
+    const float3 F = fresnelSchlick(FRef, max(0.0, dot(H, L)));
+    // Calculate normal distribution for specular BRDF.
+    const float D = ndfGGX(NdotH, R);
+    // Calculate geometric attenuation for specular BRDF.
+    const float G = gaSchlickGGX(NdotL, NdotV, R);
+
+    float3 kd = lerp(float3(1, 1, 1) - F, float3(0, 0, 0), M);
+
+    float3 diffuseBRDF = kd * Albedo;
+    float3 specularBRDF = (F * D * G) / max(Epsilon, 4.0 * NdotL * NdotV);
+
+
+    return float3((diffuseBRDF + specularBRDF) * Radiance * NdotL);
 }
 
-float distributionGGX(float3 N, float3 H, float roughness)
+float3 ibl()
 {
-    float a = roughness * roughness;
-    float a2 = a * a;
-    float NdotH = max(dot(N, H), 0.0);
-    float NdotH2 = NdotH * NdotH;
-
-    float num = a2;
-    float denom = (NdotH2 * (a2 - 1.0) + 1.0);
-    denom = PI * denom * denom;
-
-    return num / denom;
-}
-
-float geometrySchlickGGX(float NdotV, float roughness)
-{
-    float r = (roughness + 1.0);
-    float k = (r * r) / 8.0;
-
-    float num = NdotV;
-    float denom = NdotV * (1.0 - k) + k;
-
-    return num / denom;
-}
-
-float geometrySmith(float3 N, float3 V, float3 L, float roughness)
-{
-    float NdotV = max(dot(N, V), 0.0);
-    float NdotL = max(dot(N, L), 0.0);
-    float ggx2 = geometrySchlickGGX(NdotV, roughness);
-    float ggx1 = geometrySchlickGGX(NdotL, roughness);
-
-    return ggx1 * ggx2;
+    return float3(1.0, 1.0, 1.0);
 }

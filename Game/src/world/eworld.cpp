@@ -81,7 +81,8 @@ void World::init(std::shared_ptr<AssetManager>& mng, const GDevicePtr& dev)
     addComponent<StaticMeshComponent>(ent3, scifihelmetRenderable);
 
     const auto lightDirect = createObject("sunLight");
-    addComponent<DirectLightComponent>(lightDirect, glm::vec3(0.0f, 10.0f, 0.0f), glm::vec3(252.0f / 255.0f, 1.0f, 181.0f / 255.0f));
+    //addComponent<DirectLightComponent>(lightDirect, glm::vec3(0.0f, 10.0f, 0.0f), glm::vec3(252.0f / 255.0f, 1.0f, 181.0f / 255.0f));
+    addComponent<DirectLightComponent>(lightDirect, glm::vec3(0.0f, 10.0f, 0.0f), glm::vec3(1.0f, 1.0f, 1.0f));
 
     const auto testMesh = createObject("mesh");
     addComponent<TransformComponent>(testMesh, glm::vec3(0.0f, 5.0f, 0.0f));
