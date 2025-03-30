@@ -278,9 +278,9 @@ namespace EProject
         m_world.init(m_manager, m_device);
 
         // Timer...
-        current = std::chrono::high_resolution_clock::now();
-        last = std::chrono::high_resolution_clock::now();
-        deltaTime = std::chrono::duration<float>(0.0f);
+        m_current = std::chrono::high_resolution_clock::now();
+        m_last = std::chrono::high_resolution_clock::now();
+        m_deltaTime = std::chrono::duration<float>(0.0f);
     }
 
     GameWindow::~GameWindow()
@@ -368,16 +368,17 @@ namespace EProject
         if (rct.right - rct.left <= 0) return;
         if (rct.bottom - rct.top <= 0) return;
 
-        current = std::chrono::high_resolution_clock::now();
-        deltaTime = current - last;
+        m_current = std::chrono::high_resolution_clock::now();
+        m_deltaTime = m_current - m_last;
 
-        fixedUpdate(deltaTime.count());
-        update(deltaTime.count());
+        fixedUpdate(m_deltaTime.count());
+        update(m_deltaTime.count());
 
         m_device->beginFrame();
         render();
         m_device->endFrame();
 
+        m_last = m_current;
         *processed = true;
     }
 
