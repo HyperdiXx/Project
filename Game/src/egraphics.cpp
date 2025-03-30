@@ -200,10 +200,10 @@ namespace EProject
         
         glm::mat4 transform = glm::translate(matrix, _pos) * glm::scale(matrix, scale);
 
-        glm::vec4 qVert1 = transform * glm::vec4(PrimitiveFactory::getVertexPrimitive(0), PrimitiveFactory::getVertexPrimitive(1), 0.0f, 1.0f);
-        glm::vec4 qVert2 = transform * glm::vec4(PrimitiveFactory::getVertexPrimitive(2), PrimitiveFactory::getVertexPrimitive(3), 0.0f, 1.0f);
-        glm::vec4 qVert3 = transform * glm::vec4(PrimitiveFactory::getVertexPrimitive(4), PrimitiveFactory::getVertexPrimitive(5), 0.0f, 1.0f);
-        glm::vec4 qVert4 = transform * glm::vec4(PrimitiveFactory::getVertexPrimitive(6), PrimitiveFactory::getVertexPrimitive(7), 0.0f, 1.0f);
+        glm::vec4 qVert1 = transform * glm::vec4(PrimitiveFactory::getVertexPrimitive(0), PrimitiveFactory::getVertexPrimitive(1), _pos.z, 1.0f);
+        glm::vec4 qVert2 = transform * glm::vec4(PrimitiveFactory::getVertexPrimitive(2), PrimitiveFactory::getVertexPrimitive(3), _pos.z, 1.0f);
+        glm::vec4 qVert3 = transform * glm::vec4(PrimitiveFactory::getVertexPrimitive(4), PrimitiveFactory::getVertexPrimitive(5), _pos.z, 1.0f);
+        glm::vec4 qVert4 = transform * glm::vec4(PrimitiveFactory::getVertexPrimitive(6), PrimitiveFactory::getVertexPrimitive(7), _pos.z, 1.0f);
 
         m_vertexQuadBatch.emplace_back(qVert1.xyz(), _color);
         m_vertexQuadBatch.emplace_back(qVert2.xyz(), _color);
@@ -215,7 +215,7 @@ namespace EProject
 
     void Render2D::drawQuad(const glm::vec2& _pos, const glm::vec3& _color)
     {
-        drawQuad(glm::vec3(_pos.xy(), 0.0f), glm::vec4(_color.xyz(), 1.0f));
+        drawQuad(glm::vec3(_pos.xy(), -1.0f), glm::vec4(_color.xyz(), 1.0f));
     }
 
     void Render2D::draw()
@@ -226,7 +226,6 @@ namespace EProject
         }
 
         updateDrawingBatch();
-
         drawImpl();
     }
 

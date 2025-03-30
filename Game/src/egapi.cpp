@@ -91,9 +91,9 @@ namespace EProject
     void States::push()
     {
         m_states.emplace_back(this);
-        ComPtr<ID3D11RasterizerState> m_r_state = nullptr;
-        ComPtr<ID3D11DepthStencilState> m_d_state = nullptr;
-        ComPtr<ID3D11BlendState> m_b_state = nullptr;
+        m_r_state = nullptr;
+        m_d_state = nullptr;
+        m_b_state = nullptr;
     }
 
     void States::pop()

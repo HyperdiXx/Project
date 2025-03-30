@@ -1,10 +1,12 @@
 #pragma once
 
-#include "egapi.h"
+#include <d3dcommon.h>
+#include <d3d12.h>
+
 
 namespace EProject
 {
-    void getD3DErr(HRESULT hres) { 
+    /*void getD3DErr(HRESULT hres) {
         switch (hres)
         {
         case(S_OK): return;
@@ -242,5 +244,5 @@ namespace EProject
             case TexWrap::ClampBorder: res = D3D11_TEXTURE_ADDRESS_BORDER; break;
         }
         return res;
-    }
+    }*/
 }

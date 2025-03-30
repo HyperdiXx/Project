@@ -101,5 +101,8 @@
     <ClInclude Include="include\graphics\emesh.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="include\edx12api.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

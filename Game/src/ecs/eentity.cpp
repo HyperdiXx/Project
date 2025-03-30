@@ -12,7 +12,10 @@ namespace ECS
         
         EEntity result(entID++);
 
-        result.AddComponent<TagComponent>("Cat");
+        if (!name.empty())
+        {
+            result.AddComponent<TagComponent>(name);
+        }
 
         return result;
     }

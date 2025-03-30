@@ -4,7 +4,7 @@ using namespace EProject;
 
 int main()
 {
-	std::wstring winName = L"GameWindow";
+	const std::wstring winName = L"GameWindow";
 	GameWindow mainWindow(winName);
 
 	MessageLoop([&mainWindow]()

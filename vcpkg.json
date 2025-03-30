@@ -1,0 +1,8 @@
+{
+    "name": "engine",
+    "dependencies": [
+      "assimp",
+      "spine-runtimes",
+      "entt"
+    ]
+  }

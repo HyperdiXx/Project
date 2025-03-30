@@ -275,7 +275,12 @@ namespace EProject
         m_render3d = Render3D(m_device, m_camera3d);
         m_render3d.init(m_manager);
 
-        m_world.init(m_manager, m_device);            
+        m_world.init(m_manager, m_device);
+
+        // Timer...
+        current = std::chrono::high_resolution_clock::now();
+        last = std::chrono::high_resolution_clock::now();
+        deltaTime = std::chrono::duration<float>(0.0f);
     }
 
     GameWindow::~GameWindow()
@@ -363,8 +368,11 @@ namespace EProject
         if (rct.right - rct.left <= 0) return;
         if (rct.bottom - rct.top <= 0) return;
 
-        fixedUpdate(0.0f);
-        update(0.0f);
+        current = std::chrono::high_resolution_clock::now();
+        deltaTime = current - last;
+
+        fixedUpdate(deltaTime.count());
+        update(deltaTime.count());
 
         m_device->beginFrame();
         render();
@@ -398,11 +406,12 @@ namespace EProject
         frame.render2DPtr = &m_canvas;
         frame.render3DPtr = &m_render3d;
 
-        m_device->getStates()->push();
-        m_canvas.draw();
-        m_device->getStates()->pop();
-
+        auto* states = m_device->getStates();
+        
+        states->push();
         m_world.draw(frame);
+        states->pop();
 
+        m_canvas.draw();
     }
 }

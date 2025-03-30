@@ -134,7 +134,7 @@ void World::update(const FrameInfo& fi)
 void World::draw(const FrameInfo& fi)
 {    
     RenderMeshSystem::update(fi.render3DPtr, m_registry);
-    CanvasSystem::update(this, fi.render2DPtr, m_registry);
+    //CanvasSystem::update(this, fi.render2DPtr, m_registry);
 
 
 }
